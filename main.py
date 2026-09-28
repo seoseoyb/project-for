@@ -1,108 +1,154 @@
+import streamlit as st
 import base64
 import json
 import re
+import urllib.request
+import urllib.error
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
-from zoneinfo import ZoneInfo
-
-import streamlit as st
-from openai import OpenAI
 
 
 # =========================================================
-# 기본 설정
+# 페이지 설정
 # =========================================================
 
 st.set_page_config(
-    page_title="행사 포스터 → 캘린더",
+    page_title="행사 포스터 캘린더",
     page_icon="📅",
     layout="wide",
 )
 
-KST = ZoneInfo("Asia/Seoul")
+
+# =========================================================
+# CSS
+# =========================================================
+
+st.markdown("""
+<style>
+
+.main-title {
+    font-size: 42px;
+    font-weight: 800;
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    font-size: 18px;
+    color: #666;
+    margin-bottom: 30px;
+}
+
+.event-card {
+    padding: 25px;
+    border-radius: 15px;
+    border: 1px solid #ddd;
+    margin-top: 20px;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 
 # =========================================================
-# 함수
+# OpenAI API 호출
 # =========================================================
 
-def image_to_data_url(uploaded_file):
-    """업로드된 이미지를 Base64 Data URL로 변환"""
-    image_bytes = uploaded_file.getvalue()
-    encoded = base64.b64encode(image_bytes).decode("utf-8")
+def analyze_image(image_file):
 
-    mime_type = uploaded_file.type or "image/jpeg"
+    # API KEY 가져오기
+    try:
+        api_key = st.secrets["OPENAI_API_KEY"]
+    except Exception:
+        st.error(
+            "OPENAI_API_KEY가 설정되어 있지 않습니다."
+        )
+        st.info(
+            "Streamlit Cloud → Settings → Secrets에서 "
+            "OPENAI_API_KEY를 추가해주세요."
+        )
+        return None
 
-    return f"data:{mime_type};base64,{encoded}"
+    # 이미지 → Base64
+    image_bytes = image_file.getvalue()
+    base64_image = base64.b64encode(image_bytes).decode("utf-8")
 
+    mime_type = image_file.type or "image/jpeg"
 
-def extract_event_from_image(uploaded_file):
-    """AI를 이용해서 포스터에서 행사 정보를 추출"""
-
-    client = OpenAI(
-        api_key=st.secrets["OPENAI_API_KEY"]
+    image_data_url = (
+        f"data:{mime_type};base64,{base64_image}"
     )
 
-    image_url = image_to_data_url(uploaded_file)
-
+    # AI에게 전달할 프롬프트
     prompt = """
-너는 행사 포스터를 분석해서 캘린더에 넣을 정보를 추출하는 AI다.
+이 이미지는 행사 포스터다.
 
-포스터 이미지를 자세하게 읽고 아래 JSON 형식으로만 답변해라.
+포스터를 자세하게 읽고 행사 정보를 추출해줘.
 
-중요한 규칙:
+반드시 JSON 하나만 반환해.
+마크다운이나 설명을 추가하지 마.
 
-1. 포스터에 실제로 적혀 있는 정보만 사용한다.
-2. 모르는 정보는 추측하지 말고 빈 문자열로 둔다.
-3. 신청 기간과 행사 날짜를 혼동하지 않는다.
-4. 행사 날짜가 여러 날이면 시작 날짜와 종료 날짜을 각각 넣는다.
-5. 시간은 24시간 형식 HH:MM으로 작성한다.
-6. 장소는 건물명, 행사장, 층, 주소 등이 보이면 최대한 자세하게 적는다.
-7. 행사 설명은 포스터 내용을 바탕으로 2~4문장 정도로 요약한다.
-8. 포스터에 신청 URL이 명확하게 보이는 경우에만 registration_url에 넣는다.
-9. 읽기 어려운 부분이나 애매한 부분은 uncertainty 배열에 적는다.
-
-반드시 아래 JSON 구조를 지켜라.
+다음 형식을 정확하게 사용해:
 
 {
-    "title": "",
-    "event_date": "",
-    "end_date": "",
-    "start_time": "",
-    "end_time": "",
-    "location": "",
-    "organizer": "",
-    "fee": "",
-    "description": "",
-    "registration_url": "",
-    "uncertainty": []
+  "title": "",
+  "date": "",
+  "end_date": "",
+  "start_time": "",
+  "end_time": "",
+  "location": "",
+  "organizer": "",
+  "fee": "",
+  "description": "",
+  "url": "",
+  "uncertainty": []
 }
 
-날짜:
-YYYY-MM-DD
+규칙:
 
-시간:
-HH:MM
+- title: 행사 이름
+- date: 실제 행사 시작 날짜
+- end_date: 행사 종료 날짜. 하루 행사라면 date와 같은 날짜
+- start_time: 시작 시간
+- end_time: 종료 시간
+- location: 행사 장소
+- organizer: 주최 또는 주관
+- fee: 참가비
+- description: 행사 내용을 2~4문장으로 요약
+- url: 포스터에 표시된 신청 URL
+- uncertainty: 읽기 어렵거나 확실하지 않은 정보
 
-예:
+날짜는 반드시 YYYY-MM-DD 형식.
+
+시간은 반드시 HH:MM 형식.
+
+예를 들어 포스터에
+
+2026년 10월 15일
+14:00 ~ 17:00
+코엑스 컨퍼런스룸
+
+이라고 되어 있다면:
+
 {
-    "title": "2026 서울 AI 컨퍼런스",
-    "event_date": "2026-10-15",
-    "end_date": "2026-10-15",
-    "start_time": "14:00",
-    "end_time": "17:00",
-    "location": "코엑스 컨퍼런스룸 3층",
-    "organizer": "OO대학교",
-    "fee": "무료",
-    "description": "생성형 AI의 미래와 산업 활용 사례를 다루는 컨퍼런스입니다.",
-    "registration_url": "https://example.com",
-    "uncertainty": []
+  "title": "행사 이름",
+  "date": "2026-10-15",
+  "end_date": "2026-10-15",
+  "start_time": "14:00",
+  "end_time": "17:00",
+  "location": "코엑스 컨퍼런스룸",
+  ...
 }
+
+중요:
+신청기간과 행사 날짜를 혼동하지 마.
+포스터에 없는 정보는 추측하지 마.
 """
 
-    response = client.responses.create(
-        model="gpt-4.1-mini",
-        input=[
+
+    # OpenAI API 요청
+    request_body = {
+        "model": "gpt-4.1-mini",
+        "input": [
             {
                 "role": "user",
                 "content": [
@@ -112,106 +158,222 @@ HH:MM
                     },
                     {
                         "type": "input_image",
-                        "image_url": image_url,
-                        "detail": "high",
+                        "image_url": image_data_url,
                     },
                 ],
             }
         ],
+    }
+
+    data = json.dumps(
+        request_body
+    ).encode("utf-8")
+
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
     )
 
-    result = response.output_text.strip()
+    try:
+
+        with urllib.request.urlopen(
+            request,
+            timeout=120,
+        ) as response:
+
+            response_data = json.loads(
+                response.read().decode("utf-8")
+            )
+
+    except urllib.error.HTTPError as e:
+
+        error_body = e.read().decode(
+            "utf-8",
+            errors="ignore",
+        )
+
+        st.error(
+            f"OpenAI API 오류 ({e.code})"
+        )
+
+        st.code(error_body)
+
+        return None
+
+    except Exception as e:
+
+        st.error(
+            f"API 연결 오류: {str(e)}"
+        )
+
+        return None
+
+
+    # AI 결과 가져오기
+    try:
+
+        output_text = response_data["output"][0]["content"][0]["text"]
+
+    except Exception:
+
+        # Responses API 응답 구조가 다를 경우
+        output_text = ""
+
+        for output in response_data.get(
+            "output",
+            [],
+        ):
+
+            for content in output.get(
+                "content",
+                [],
+            ):
+
+                if content.get("type") == "output_text":
+
+                    output_text += content.get(
+                        "text",
+                        "",
+                    )
+
+
+    if not output_text:
+
+        st.error(
+            "AI가 결과를 반환하지 않았습니다."
+        )
+
+        st.json(response_data)
+
+        return None
+
 
     # ```json 제거
-    result = re.sub(
-        r"^```json\s*",
+    output_text = re.sub(
+        r"```json",
         "",
-        result,
+        output_text,
         flags=re.IGNORECASE,
     )
 
-    result = re.sub(
-        r"\s*```$",
+    output_text = re.sub(
+        r"```",
         "",
-        result,
+        output_text,
     )
 
-    return json.loads(result)
+    output_text = output_text.strip()
 
 
-def parse_datetime(date_string, time_string=None):
-    """문자열을 datetime으로 변환"""
+    # JSON 변환
+    try:
 
-    if not date_string:
+        result = json.loads(
+            output_text
+        )
+
+        return result
+
+    except Exception:
+
+        # JSON 앞뒤에 이상한 텍스트가 붙은 경우
+        match = re.search(
+            r"\{.*\}",
+            output_text,
+            re.DOTALL,
+        )
+
+        if match:
+
+            try:
+
+                return json.loads(
+                    match.group()
+                )
+
+            except Exception:
+                pass
+
+
+        st.error(
+            "AI 결과를 JSON으로 변환하지 못했습니다."
+        )
+
+        st.code(
+            output_text
+        )
+
         return None
 
-    if time_string:
-        dt = datetime.strptime(
-            f"{date_string} {time_string}",
-            "%Y-%m-%d %H:%M",
-        )
-    else:
-        dt = datetime.strptime(
-            date_string,
-            "%Y-%m-%d",
-        )
 
-    return dt.replace(tzinfo=KST)
-
-
-def build_description(event):
-    """캘린더 설명 생성"""
-
-    description = []
-
-    if event.get("description"):
-        description.append(
-            event["description"]
-        )
-
-    if event.get("organizer"):
-        description.append(
-            f"주최/주관: {event['organizer']}"
-        )
-
-    if event.get("fee"):
-        description.append(
-            f"참가비: {event['fee']}"
-        )
-
-    if event.get("registration_url"):
-        description.append(
-            f"신청 링크: {event['registration_url']}"
-        )
-
-    return "\n".join(description)
-
+# =========================================================
+# Google Calendar URL
+# =========================================================
 
 def create_google_calendar_url(event):
-    """Google Calendar 일정 생성 URL"""
 
-    title = event.get("title", "")
-    location = event.get("location", "")
-    description = build_description(event)
+    title = event.get(
+        "title",
+        "",
+    )
 
-    event_date = event.get("event_date")
-    end_date = event.get("end_date") or event_date
+    location = event.get(
+        "location",
+        "",
+    )
 
-    start_time = event.get("start_time")
-    end_time = event.get("end_time")
+    description = event.get(
+        "description",
+        "",
+    )
 
-    # 시간이 없는 경우 → 종일 일정
+    date = event.get(
+        "date",
+        "",
+    )
+
+    end_date = (
+        event.get("end_date")
+        or date
+    )
+
+    start_time = event.get(
+        "start_time",
+        "",
+    )
+
+    end_time = event.get(
+        "end_time",
+        "",
+    )
+
+
+    # 날짜가 없는 경우
+    if not date:
+
+        return None
+
+
+    # 시간 없는 종일 행사
     if not start_time:
 
         start = datetime.strptime(
-            event_date,
+            date,
             "%Y-%m-%d",
         )
 
-        end = datetime.strptime(
-            end_date,
-            "%Y-%m-%d",
-        ) + timedelta(days=1)
+        end = (
+            datetime.strptime(
+                end_date,
+                "%Y-%m-%d",
+            )
+            + timedelta(days=1)
+        )
 
         dates = (
             start.strftime("%Y%m%d")
@@ -221,21 +383,35 @@ def create_google_calendar_url(event):
 
     else:
 
-        start = parse_datetime(
-            event_date,
-            start_time,
+        start = datetime.strptime(
+            f"{date} {start_time}",
+            "%Y-%m-%d %H:%M",
         )
 
-        end = parse_datetime(
-            end_date,
-            end_time or start_time,
-        )
+        if end_time:
+
+            end = datetime.strptime(
+                f"{end_date} {end_time}",
+                "%Y-%m-%d %H:%M",
+            )
+
+        else:
+
+            end = start + timedelta(
+                hours=1
+            )
+
 
         dates = (
-            start.strftime("%Y%m%dT%H%M%S")
+            start.strftime(
+                "%Y%m%dT%H%M%S"
+            )
             + "/"
-            + end.strftime("%Y%m%dT%H%M%S")
+            + end.strftime(
+                "%Y%m%dT%H%M%S"
+            )
         )
+
 
     params = {
         "action": "TEMPLATE",
@@ -252,8 +428,11 @@ def create_google_calendar_url(event):
     )
 
 
+# =========================================================
+# ICS 파일
+# =========================================================
+
 def escape_ics(value):
-    """ICS 문자열 escape"""
 
     return (
         str(value or "")
@@ -261,12 +440,10 @@ def escape_ics(value):
         .replace(";", "\\;")
         .replace(",", "\\,")
         .replace("\n", "\\n")
-        .replace("\r", "")
     )
 
 
 def create_ics(event):
-    """Apple Calendar / Outlook 등에 사용할 ICS 생성"""
 
     title = escape_ics(
         event.get("title")
@@ -277,26 +454,32 @@ def create_ics(event):
     )
 
     description = escape_ics(
-        build_description(event)
+        event.get("description")
     )
 
-    uid = (
-        datetime.now()
-        .strftime("%Y%m%d%H%M%S")
-        + "@event-calendar"
+    date = event.get(
+        "date"
     )
 
-    event_date = event.get("event_date")
-    end_date = event.get("end_date") or event_date
+    end_date = (
+        event.get("end_date")
+        or date
+    )
 
-    start_time = event.get("start_time")
-    end_time = event.get("end_time")
+    start_time = event.get(
+        "start_time"
+    )
+
+    end_time = event.get(
+        "end_time"
+    )
+
 
     # 종일 일정
     if not start_time:
 
         start = datetime.strptime(
-            event_date,
+            date,
             "%Y-%m-%d",
         )
 
@@ -308,107 +491,109 @@ def create_ics(event):
             + timedelta(days=1)
         )
 
-        lines = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:-//Event Poster Calendar//KR",
-            "BEGIN:VEVENT",
-            f"UID:{uid}",
-            f"DTSTAMP:{datetime.now(KST).strftime('%Y%m%dT%H%M%S')}",
-            f"DTSTART;VALUE=DATE:{start.strftime('%Y%m%d')}",
-            f"DTEND;VALUE=DATE:{end.strftime('%Y%m%d')}",
-            f"SUMMARY:{title}",
-            f"LOCATION:{location}",
-            f"DESCRIPTION:{description}",
-            "END:VEVENT",
-            "END:VCALENDAR",
-        ]
+        content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Event Poster Calendar//KR
+BEGIN:VEVENT
+UID:{datetime.now().timestamp()}@eventposter
+DTSTART;VALUE=DATE:{start.strftime("%Y%m%d")}
+DTEND;VALUE=DATE:{end.strftime("%Y%m%d")}
+SUMMARY:{title}
+LOCATION:{location}
+DESCRIPTION:{description}
+END:VEVENT
+END:VCALENDAR
+"""
 
-    # 시간 있는 일정
     else:
 
-        start = parse_datetime(
-            event_date,
-            start_time,
+        start = datetime.strptime(
+            f"{date} {start_time}",
+            "%Y-%m-%d %H:%M",
         )
 
-        end = parse_datetime(
-            end_date,
-            end_time or start_time,
-        )
+        if end_time:
 
-        lines = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:-//Event Poster Calendar//KR",
-            "BEGIN:VEVENT",
-            f"UID:{uid}",
-            f"DTSTAMP:{datetime.now(KST).strftime('%Y%m%dT%H%M%S')}",
-            f"DTSTART;TZID=Asia/Seoul:{start.strftime('%Y%m%dT%H%M%S')}",
-            f"DTEND;TZID=Asia/Seoul:{end.strftime('%Y%m%dT%H%M%S')}",
-            f"SUMMARY:{title}",
-            f"LOCATION:{location}",
-            f"DESCRIPTION:{description}",
-            "END:VEVENT",
-            "END:VCALENDAR",
-        ]
+            end = datetime.strptime(
+                f"{end_date} {end_time}",
+                "%Y-%m-%d %H:%M",
+            )
 
-    return (
-        "\r\n".join(lines) + "\r\n"
-    ).encode("utf-8")
+        else:
+
+            end = start + timedelta(
+                hours=1
+            )
+
+
+        content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Event Poster Calendar//KR
+BEGIN:VEVENT
+UID:{datetime.now().timestamp()}@eventposter
+DTSTART;TZID=Asia/Seoul:{start.strftime("%Y%m%dT%H%M%S")}
+DTEND;TZID=Asia/Seoul:{end.strftime("%Y%m%dT%H%M%S")}
+SUMMARY:{title}
+LOCATION:{location}
+DESCRIPTION:{description}
+END:VEVENT
+END:VCALENDAR
+"""
+
+
+    return content.encode(
+        "utf-8"
+    )
 
 
 # =========================================================
-# 화면
+# 제목
 # =========================================================
-
-st.title("📅 행사 포스터 → 캘린더")
 
 st.markdown(
-    """
-### 포스터 한 장으로 행사 일정을 만들어보세요.
+    '<div class="main-title">📅 행사 포스터 → 캘린더</div>',
+    unsafe_allow_html=True,
+)
 
-행사 포스터를 업로드하면 AI가
-
-**행사명 · 날짜 · 시간 · 장소 · 주최 · 참가비 · 행사내용 · 신청링크**
-
-를 자동으로 찾아줍니다.
-"""
+st.markdown(
+    '<div class="subtitle">'
+    '포스터를 올리면 AI가 행사 정보를 자동으로 정리해드립니다.'
+    '</div>',
+    unsafe_allow_html=True,
 )
 
 
 # =========================================================
-# 사이드바
+# 사용 방법
 # =========================================================
 
-with st.sidebar:
+with st.expander(
+    "💡 어떻게 사용하나요?"
+):
 
-    st.header("⚙️ 설정")
-
-    st.markdown(
+    st.write(
         """
-### 사용 방법
+        **① 포스터 업로드**
 
-**1.** 행사 포스터 업로드
+        행사 포스터 이미지를 올립니다.
 
-**2.** AI 정보 추출
+        **② AI 분석**
 
-**3.** 결과 확인 및 수정
+        행사명, 날짜, 시간, 장소 등을 자동으로 추출합니다.
 
-**4.** 캘린더 추가
-"""
-    )
+        **③ 정보 확인**
 
-    st.divider()
+        AI가 잘못 읽은 내용은 직접 수정할 수 있습니다.
 
-    st.caption(
-        "AI가 읽은 정보는 반드시 확인한 후 "
-        "캘린더에 등록하세요."
+        **④ 캘린더 추가**
+
+        Google Calendar 또는 `.ics` 파일로 추가합니다.
+        """
     )
 
 
 # =========================================================
-# 업로드
+# 파일 업로드
 # =========================================================
 
 uploaded_file = st.file_uploader(
@@ -422,35 +607,58 @@ uploaded_file = st.file_uploader(
 )
 
 
-# session state
+# =========================================================
+# Session
+# =========================================================
+
 if "event" not in st.session_state:
+
     st.session_state.event = None
 
 
 # =========================================================
-# 포스터 표시
+# 업로드 후
 # =========================================================
 
 if uploaded_file:
 
     st.divider()
 
-    col1, col2 = st.columns(
-        [1, 1]
+    left, right = st.columns(
+        2
     )
 
-    with col1:
 
-        st.subheader("🖼️ 포스터")
+    # -----------------------------------------------------
+    # 이미지
+    # -----------------------------------------------------
+
+    with left:
+
+        st.subheader(
+            "🖼️ 포스터"
+        )
 
         st.image(
             uploaded_file,
             use_container_width=True,
         )
 
-    with col2:
 
-        st.subheader("🤖 AI 분석")
+    # -----------------------------------------------------
+    # 분석
+    # -----------------------------------------------------
+
+    with right:
+
+        st.subheader(
+            "🤖 AI 분석"
+        )
+
+        st.write(
+            "포스터에서 행사 정보를 찾아냅니다."
+        )
+
 
         if st.button(
             "✨ 행사 정보 추출하기",
@@ -458,110 +666,83 @@ if uploaded_file:
             use_container_width=True,
         ):
 
-            if "OPENAI_API_KEY" not in st.secrets:
+            with st.spinner(
+                "포스터를 분석하고 있습니다..."
+            ):
 
-                st.error(
-                    "OPENAI_API_KEY가 설정되어 있지 않습니다."
+                result = analyze_image(
+                    uploaded_file
                 )
 
-            else:
 
-                with st.spinner(
-                    "포스터를 분석하고 있습니다..."
-                ):
+            if result:
 
-                    try:
+                st.session_state.event = result
 
-                        event = (
-                            extract_event_from_image(
-                                uploaded_file
-                            )
-                        )
-
-                        st.session_state.event = event
-
-                        st.success(
-                            "행사 정보를 추출했습니다!"
-                        )
-
-                    except json.JSONDecodeError:
-
-                        st.error(
-                            "AI 응답을 읽지 못했습니다. "
-                            "다시 시도해주세요."
-                        )
-
-                    except Exception as e:
-
-                        st.error(
-                            f"오류가 발생했습니다: {e}"
-                        )
+                st.success(
+                    "행사 정보를 추출했습니다!"
+                )
 
 
 # =========================================================
-# 행사 정보
+# 결과
 # =========================================================
 
 if st.session_state.event:
 
     event = st.session_state.event
 
+
     st.divider()
 
-    st.subheader("📝 행사 정보")
-
-    st.caption(
-        "AI가 추출한 정보입니다. "
-        "틀린 내용이 있다면 직접 수정하세요."
+    st.subheader(
+        "📋 행사 정보 확인"
     )
 
-    col1, col2 = st.columns(2)
+    st.caption(
+        "AI가 추출한 내용입니다. "
+        "필요하면 직접 수정해주세요."
+    )
+
+
+    # -----------------------------------------------------
+    # 행사명
+    # -----------------------------------------------------
+
+    event["title"] = st.text_input(
+        "행사명",
+        value=event.get(
+            "title",
+            "",
+        ),
+    )
+
+
+    # -----------------------------------------------------
+    # 날짜 / 시간
+    # -----------------------------------------------------
+
+    col1, col2, col3, col4 = st.columns(
+        4
+    )
+
 
     with col1:
 
-        event["title"] = st.text_input(
-            "행사명",
-            value=event.get("title", ""),
-        )
-
-        event["event_date"] = st.text_input(
-            "행사 날짜",
+        event["date"] = st.text_input(
+            "📅 시작 날짜",
             value=event.get(
-                "event_date",
+                "date",
                 "",
             ),
             placeholder="2026-10-15",
         )
 
-        event["start_time"] = st.text_input(
-            "시작 시간",
-            value=event.get(
-                "start_time",
-                "",
-            ),
-            placeholder="14:00",
-        )
-
-        event["location"] = st.text_input(
-            "📍 장소",
-            value=event.get(
-                "location",
-                "",
-            ),
-        )
-
-        event["organizer"] = st.text_input(
-            "주최 / 주관",
-            value=event.get(
-                "organizer",
-                "",
-            ),
-        )
 
     with col2:
 
         event["end_date"] = st.text_input(
-            "종료 날짜",
+            "📅 종료 날짜",
             value=event.get(
                 "end_date",
                 "",
@@ -569,14 +750,65 @@ if st.session_state.event:
             placeholder="2026-10-15",
         )
 
+
+    with col3:
+
+        event["start_time"] = st.text_input(
+            "🕐 시작 시간",
+            value=event.get(
+                "start_time",
+                "",
+            ),
+            placeholder="14:00",
+        )
+
+
+    with col4:
+
         event["end_time"] = st.text_input(
-            "종료 시간",
+            "🕐 종료 시간",
             value=event.get(
                 "end_time",
                 "",
             ),
             placeholder="17:00",
         )
+
+
+    # -----------------------------------------------------
+    # 장소
+    # -----------------------------------------------------
+
+    event["location"] = st.text_input(
+        "📍 장소",
+        value=event.get(
+            "location",
+            "",
+        ),
+    )
+
+
+    # -----------------------------------------------------
+    # 주최 / 참가비
+    # -----------------------------------------------------
+
+    col1, col2 = st.columns(
+        2
+    )
+
+
+    with col1:
+
+        event["organizer"] = st.text_input(
+            "🏢 주최 / 주관",
+            value=event.get(
+                "organizer",
+                "",
+            ),
+        )
+
+
+    with col2:
 
         event["fee"] = st.text_input(
             "💰 참가비",
@@ -586,43 +818,54 @@ if st.session_state.event:
             ),
         )
 
-        event["registration_url"] = st.text_input(
-            "🔗 신청 링크",
-            value=event.get(
-                "registration_url",
-                "",
-            ),
-        )
+
+    # -----------------------------------------------------
+    # 설명
+    # -----------------------------------------------------
 
     event["description"] = st.text_area(
-        "📖 행사 내용",
+        "📝 행사 내용",
         value=event.get(
             "description",
             "",
         ),
-        height=160,
+        height=150,
     )
 
 
-    # =====================================================
-    # AI 불확실성
-    # =====================================================
+    # -----------------------------------------------------
+    # 신청 링크
+    # -----------------------------------------------------
+
+    event["url"] = st.text_input(
+        "🔗 신청 링크",
+        value=event.get(
+            "url",
+            "",
+        ),
+    )
+
+
+    # -----------------------------------------------------
+    # 불확실한 정보
+    # -----------------------------------------------------
 
     uncertainty = event.get(
         "uncertainty",
         [],
     )
 
+
     if uncertainty:
 
         with st.expander(
-            "⚠️ AI가 확신하지 못한 부분"
+            "⚠️ AI가 확실하지 않은 부분"
         ):
 
             for item in uncertainty:
 
                 st.write(
-                    f"• {item}"
+                    "• " + str(item)
                 )
 
 
@@ -636,6 +879,7 @@ if st.session_state.event:
         "📆 캘린더에 추가"
     )
 
+
     try:
 
         google_url = (
@@ -644,24 +888,39 @@ if st.session_state.event:
             )
         )
 
-        ics_data = create_ics(
+        ics_file = create_ics(
             event
         )
 
-        col1, col2 = st.columns(2)
 
+        col1, col2 = st.columns(
+            2
+        )
+
+
+        # Google
         with col1:
 
-            st.link_button(
-                "🗓️ Google Calendar에 추가",
-                google_url,
-                use_container_width=True,
-            )
+            if google_url:
 
+                st.link_button(
+                    "🗓️ Google Calendar에 추가",
+                    google_url,
+                    use_container_width=True,
+                )
+
+            else:
+
+                st.warning(
+                    "행사 날짜가 필요합니다."
+                )
+
+
+        # ICS
         with col2:
 
-            safe_filename = re.sub(
-                r'[\\/:*?"<>|]+',
+            filename = re.sub(
+                r'[\\/:*?"<>|]',
                 "_",
                 event.get(
                     "title",
@@ -670,12 +929,13 @@ if st.session_state.event:
             )
 
             st.download_button(
-                "⬇️ .ics 파일 다운로드",
-                data=ics_data,
-                file_name=f"{safe_filename}.ics",
+                "⬇️ 캘린더 파일 다운로드",
+                data=ics_file,
+                file_name=f"{filename}.ics",
                 mime="text/calendar",
                 use_container_width=True,
             )
+
 
     except Exception as e:
 
@@ -685,11 +945,11 @@ if st.session_state.event:
 
 
 # =========================================================
-# 아무것도 없을 때
+# Footer
 # =========================================================
 
-else:
+st.divider()
 
-    st.info(
-        "👆 위에서 행사 포스터를 업로드해보세요."
-    )
+st.caption(
+    "📅 Event Poster Calendar · AI 기반 행사 일정 정리"
+)
