@@ -640,7 +640,7 @@ def make_ics(data):
 # DISPLAY HELPERS
 # =========================================================
 def make_keyword_summary(text):
-    """OCR 원문에서 긴 문장을 그대로 보여주지 않고 핵심 문장/키워드를 정리합니다."""
+    """포스터에서 찾은 내용을 긴 문장 대신 핵심 문장/키워드로 정리합니다."""
     if not text:
         return "행사 설명이 없습니다."
 
@@ -666,7 +666,7 @@ def make_keyword_summary(text):
             continue
         useful.append(line)
 
-    # 너무 긴 OCR 문장은 핵심 앞부분 위주로 정리
+    # 너무 긴 포스터 내용은 핵심 앞부분 위주로 정리
     keywords = []
     for line in useful[:8]:
         line = re.sub(r"\s{2,}", " ", line)
@@ -692,7 +692,6 @@ def render_event_summary(data, index):
     deadline = data.get("deadline", "").strip()
     summary = make_keyword_summary(data.get("ocr_text", ""))
 
-    # 날짜를 보기 좋은 형태로 변환
     def pretty_date(value):
         try:
             return datetime.strptime(value, "%Y-%m-%d").strftime("%Y.%m.%d")
@@ -707,7 +706,6 @@ def render_event_summary(data, index):
     else:
         date_range = f"{date_text} ~ {end_date_text}"
 
-    time_text = ""
     if start_time and end_time:
         time_text = f"{start_time} ~ {end_time}"
     elif start_time:
@@ -715,37 +713,35 @@ def render_event_summary(data, index):
     else:
         time_text = "시간 확인 필요"
 
-    st.markdown(
-        f"""
-        <div class="event-card">
-            <div class="event-number">EVENT {index + 1}</div>
-            <div class="event-title">{title}</div>
+    # HTML을 사용하지 않고 Streamlit 기본 UI로 표시하여
+    # <div>, <b> 등의 코드가 사용자 화면에 그대로 나타나지 않도록 합니다.
+    with st.container(border=True):
+        st.caption(f"EVENT {index + 1}")
+        st.markdown(f"# {title}")
 
-            <div class="event-main-info">
-                <div class="info-item">
-                    <div class="info-label">📅 행사 날짜</div>
-                    <div class="info-value">{date_range}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">⏰ 시간</div>
-                    <div class="info-value">{time_text}</div>
-                </div>
-            </div>
+        date_col, time_col = st.columns(2)
+        with date_col:
+            st.markdown("**📅 행사 날짜**")
+            st.markdown(f"### {date_range}")
+        with time_col:
+            st.markdown("**⏰ 시간**")
+            st.markdown(f"### {time_text}")
 
-            <div class="event-sub-info">
-                <div><b>📍 장소</b>　{location}</div>
-                <div><b>🏢 주최·주관</b>　{organizer}</div>
-                {f'<div><b>📝 신청 마감</b>　{pretty_date(deadline)}</div>' if deadline else ''}
-            </div>
+        st.divider()
 
-            <div class="event-description">
-                <div class="info-label">✨ 핵심 내용</div>
-                <div class="keyword-text">{summary}</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+        place_col, organizer_col = st.columns(2)
+        with place_col:
+            st.markdown("**📍 장소**")
+            st.write(location)
+        with organizer_col:
+            st.markdown("**🏢 주최·주관**")
+            st.write(organizer)
+
+        if deadline:
+            st.markdown(f"**📝 신청 마감**　{pretty_date(deadline)}")
+
+        st.markdown("**✨ 핵심 내용**")
+        st.write(summary)
 
 
 # =========================================================
@@ -954,12 +950,11 @@ if st.session_state.events:
                     disabled=True
                 )
 
-                # 핵심 내용은 사용자가 직접 한 줄 요약으로 바꾸는 대신
-                # OCR 원문에서 자동으로 보기 좋게 표시
+                # 핵심 내용은 포스터에서 찾은 내용에서 자동으로 보기 좋게 표시
                 st.markdown("**✨ 자동 요약**")
                 st.info(make_keyword_summary(data.get("ocr_text", "")))
 
-                # description은 내부적으로 OCR 원문을 유지
+                # description은 내부적으로 포스터에서 찾은 전체 내용을 유지
                 data["description"] = data.get("ocr_text", "")
 
             if data.get("needs_review"):
@@ -1048,3 +1043,4 @@ st.divider()
 st.caption(
     "Poster Calendar · 여러 포스터 · 날짜 선택 · 마감일 구분 · 정보 확인 · 중복 방지"
 )
+
