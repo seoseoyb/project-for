@@ -408,25 +408,119 @@ def extract_fee(text):
 
 
 def extract_title(text):
-    lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
-    if not lines: return ""
-    excluded = ["일시", "기간", "장소", "문의", "주최", "주관", "신청", "접수", "마감", "http", "www.", "무료", "입장료"]
-    # 제목으로 보기 좋은 줄: 너무 짧거나 연락/날짜 정보는 제외, 길이는 적당히
-    candidates=[]
-    for i,line in enumerate(lines[:20]):
-        lower=line.lower()
-        if len(line)<2 or len(line)>80: continue
-        if any(word in lower for word in excluded): continue
-        if re.search(r"20\d{2}.*\d{1,2}.*\d{1,2}", line): continue
-        if re.search(r"\d{1,2}\s*[:시]\s*\d{0,2}", line): continue
-        score=0
-        if i<5: score+=3
-        if len(line)>=4: score+=2
-        if re.search(r"[가-힣]", line): score+=2
-        if any(k in line for k in ["축제","페스티벌","콘서트","공연","전시","대회","행사","음악회","마켓","박람회"]): score+=5
-        if line.isupper(): score+=1
-        candidates.append((score,line))
-    return max(candidates, key=lambda x:x[0])[1] if candidates else lines[0]
+    """포스터의 제목이 여러 줄로 나뉘어 있어도 하나의 행사명으로 묶어 찾습니다."""
+    raw_lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines()]
+    lines = [line for line in raw_lines if line]
+    if not lines:
+        return ""
+
+    excluded_words = [
+        "일시", "기간", "일정", "장소", "문의", "주최", "주관", "주최주관",
+        "신청", "접수", "마감", "등록", "주소", "홈페이지", "http", "www.",
+        "무료", "입장료", "참가비", "문의처", "전화", "연락처"
+    ]
+    title_type_words = [
+        "축제", "페스티벌", "콘서트", "공연", "전시", "대회", "행사", "음악회",
+        "마켓", "박람회", "데이", "페어", "쇼", "캠프", "파티", "페스타"
+    ]
+    generic_only = set(title_type_words + ["festival", "concert", "event", "day"])
+
+    def is_metadata(line):
+        lower = line.lower()
+        if any(word in lower for word in excluded_words):
+            return True
+        if re.search(r"20\d{2}[.\-/년]\s*\d{1,2}[.\-/월]\s*\d{1,2}", line):
+            return True
+        if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일", line):
+            return True
+        if re.search(r"\d{1,2}\s*[:.]\s*\d{2}", line):
+            return True
+        if re.search(r"\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?", line) and len(line) < 35:
+            return True
+        return False
+
+    def clean(line):
+        return re.sub(r"\s+", " ", line).strip(" -–—|•·")
+
+    # OCR 순서상 제목이 위쪽에 있을 가능성이 높으므로 앞부분을 중심으로 탐색합니다.
+    top_lines = lines[:30]
+    candidates = []
+
+    # 한 줄 후보
+    for i, line in enumerate(top_lines):
+        line = clean(line)
+        if not line or is_metadata(line) or len(line) > 80:
+            continue
+        lower = line.lower()
+        score = 0
+        if i < 6:
+            score += 4
+        elif i < 12:
+            score += 2
+        if len(line) >= 4:
+            score += 2
+        if re.search(r"[가-힣]", line):
+            score += 3
+        if re.search(r"[A-Za-z]", line):
+            score += 1
+        if any(k in lower for k in title_type_words):
+            score += 5
+        # 행사 유형 단어만 있는 경우에는 제목으로 선택하지 않습니다.
+        if lower.strip(" .") in generic_only:
+            score -= 12
+        if re.fullmatch(r"20\d{2}", line):
+            score -= 5
+        candidates.append((score, i, line))
+
+    # 제목이 시각적으로 여러 줄로 분리된 경우를 위해 2~3줄을 묶습니다.
+    # 예: ['2018', '롱런', '페스티벌'] -> '2018 롱런 페스티벌'
+    #     ['함께 뛰는 재미', '스포츠 데이'] -> '함께 뛰는 재미 스포츠 데이'
+    for i in range(min(len(top_lines), 18)):
+        for size in (2, 3):
+            if i + size > len(top_lines):
+                continue
+            block = [clean(x) for x in top_lines[i:i+size]]
+            if any(not x or is_metadata(x) for x in block):
+                continue
+            if any(len(x) > 60 for x in block):
+                continue
+            combined = re.sub(r"\s+", " ", " ".join(block)).strip()
+            if len(combined) < 4 or len(combined) > 100:
+                continue
+
+            score = 0
+            if i < 5:
+                score += 6
+            elif i < 10:
+                score += 3
+            if any(re.search(r"[가-힣]", x) for x in block):
+                score += 4
+            if any(re.search(r"[A-Za-z]", x) for x in block):
+                score += 1
+            type_count = sum(1 for x in block if any(k in x.lower() for k in title_type_words))
+            if type_count:
+                score += 6
+            # 여러 줄로 쪼개진 행사명을 합친 후보를 우선합니다.
+            score += 5
+            # 메타데이터처럼 보이는 조합은 제외합니다.
+            if any(re.search(r"20\d{2}[.\-/년]\s*\d{1,2}", x) for x in block[1:]):
+                score -= 8
+            candidates.append((score, i, combined))
+
+    if not candidates:
+        return lines[0]
+
+    # 행사 유형 단어가 포함된 완성형 제목을 우선하되, '페스티벌' 하나만 고르는 것을 방지합니다.
+    candidates.sort(key=lambda x: (x[0], len(x[2])), reverse=True)
+    best = candidates[0][2]
+
+    # 최종 안전장치: 유형 단어 하나만 남은 경우, 그보다 앞쪽의 의미 있는 후보를 선택합니다.
+    if best.lower().strip(" .") in generic_only:
+        meaningful = [c for c in candidates if c[2].lower().strip(" .") not in generic_only]
+        if meaningful:
+            best = meaningful[0][2]
+
+    return best
 
 
 # =========================================================
