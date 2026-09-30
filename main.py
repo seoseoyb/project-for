@@ -16,6 +16,88 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown(
+    """
+    <style>
+    .event-card {
+        padding: 24px 26px;
+        border: 1px solid rgba(128,128,128,0.25);
+        border-radius: 18px;
+        margin: 8px 0 18px 0;
+        background: rgba(128,128,128,0.06);
+    }
+
+    .event-number {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        opacity: 0.6;
+        margin-bottom: 4px;
+    }
+
+    .event-title {
+        font-size: 32px;
+        font-weight: 800;
+        line-height: 1.25;
+        margin-bottom: 22px;
+    }
+
+    .event-main-info {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .info-item {
+        flex: 1;
+        padding: 15px 18px;
+        border-radius: 12px;
+        background: rgba(128,128,128,0.10);
+    }
+
+    .info-label {
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        opacity: 0.72;
+    }
+
+    .info-value {
+        font-size: 20px;
+        font-weight: 750;
+    }
+
+    .event-sub-info {
+        display: grid;
+        gap: 8px;
+        font-size: 16px;
+        line-height: 1.55;
+        margin-bottom: 18px;
+    }
+
+    .event-description {
+        border-top: 1px solid rgba(128,128,128,0.2);
+        padding-top: 16px;
+    }
+
+    .keyword-text {
+        font-size: 16px;
+        line-height: 1.7;
+    }
+
+    @media (max-width: 700px) {
+        .event-title {
+            font-size: 25px;
+        }
+        .event-main-info {
+            flex-direction: column;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # =========================================================
 # OCR
 # =========================================================
@@ -85,7 +167,7 @@ def ocr_image(image):
             )
 
         if result.get("IsErroredOnProcessing"):
-            return "", "OCR 서버가 이미지를 읽지 못했습니다."
+            return "", "포스터의 글자를 읽지 못했습니다."
 
         parsed_results = result.get("ParsedResults", [])
         if not parsed_results:
@@ -105,7 +187,7 @@ def ocr_image(image):
 
     except Exception:
         return "", (
-            "OCR 연결에 실패했습니다. "
+            "포스터 정보를 읽는 데 실패했습니다. "
             "아래에서 행사 정보를 직접 입력할 수 있습니다."
         )
 
@@ -389,7 +471,7 @@ def empty_event_data(source_name=""):
         "added": False,
         "confirmed": False,
         "needs_review": True,
-        "review_reasons": ["OCR 결과를 확인해주세요."]
+        "review_reasons": ["포스터에서 찾은 정보를 확인해주세요."]
     }
 
 
@@ -555,6 +637,118 @@ def make_ics(data):
 
 
 # =========================================================
+# DISPLAY HELPERS
+# =========================================================
+def make_keyword_summary(text):
+    """OCR 원문에서 긴 문장을 그대로 보여주지 않고 핵심 문장/키워드를 정리합니다."""
+    if not text:
+        return "행사 설명이 없습니다."
+
+    lines = [
+        re.sub(r"\s+", " ", line).strip()
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
+    # 날짜/시간/URL/장소/주최처럼 이미 별도 표시하는 정보는 제외
+    excluded_words = [
+        "장소", "주최", "주관", "문의", "신청", "접수",
+        "마감", "http://", "https://", "www."
+    ]
+
+    useful = []
+    for line in lines:
+        if len(line) < 3:
+            continue
+        if any(word in line for word in excluded_words):
+            continue
+        if line in useful:
+            continue
+        useful.append(line)
+
+    # 너무 긴 OCR 문장은 핵심 앞부분 위주로 정리
+    keywords = []
+    for line in useful[:8]:
+        line = re.sub(r"\s{2,}", " ", line)
+        if len(line) > 80:
+            line = line[:80] + "…"
+        keywords.append(line)
+
+    if not keywords:
+        return "행사 관련 정보가 없습니다."
+
+    return "  ·  ".join(keywords[:5])
+
+
+def render_event_summary(data, index):
+    """행사 정보를 한눈에 볼 수 있는 요약 카드."""
+    title = data.get("title", "").strip() or "행사명 확인 필요"
+    date = data.get("date", "").strip() or "날짜 확인 필요"
+    end_date = data.get("end_date", "").strip() or date
+    start_time = data.get("start_time", "").strip()
+    end_time = data.get("end_time", "").strip()
+    location = data.get("location", "").strip() or "장소 확인 필요"
+    organizer = data.get("organizer", "").strip() or "주최·주관 정보 확인 필요"
+    deadline = data.get("deadline", "").strip()
+    summary = make_keyword_summary(data.get("ocr_text", ""))
+
+    # 날짜를 보기 좋은 형태로 변환
+    def pretty_date(value):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").strftime("%Y.%m.%d")
+        except Exception:
+            return value
+
+    date_text = pretty_date(date)
+    end_date_text = pretty_date(end_date)
+
+    if date == end_date or not end_date:
+        date_range = date_text
+    else:
+        date_range = f"{date_text} ~ {end_date_text}"
+
+    time_text = ""
+    if start_time and end_time:
+        time_text = f"{start_time} ~ {end_time}"
+    elif start_time:
+        time_text = start_time
+    else:
+        time_text = "시간 확인 필요"
+
+    st.markdown(
+        f"""
+        <div class="event-card">
+            <div class="event-number">EVENT {index + 1}</div>
+            <div class="event-title">{title}</div>
+
+            <div class="event-main-info">
+                <div class="info-item">
+                    <div class="info-label">📅 행사 날짜</div>
+                    <div class="info-value">{date_range}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">⏰ 시간</div>
+                    <div class="info-value">{time_text}</div>
+                </div>
+            </div>
+
+            <div class="event-sub-info">
+                <div><b>📍 장소</b>　{location}</div>
+                <div><b>🏢 주최·주관</b>　{organizer}</div>
+                {f'<div><b>📝 신청 마감</b>　{pretty_date(deadline)}</div>' if deadline else ''}
+            </div>
+
+            <div class="event-description">
+                <div class="info-label">✨ 핵심 내용</div>
+                <div class="keyword-text">{summary}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+# =========================================================
 # SESSION STATE
 # =========================================================
 if "events" not in st.session_state:
@@ -575,7 +769,7 @@ st.write(
 
 st.info(
     "🔒 이 버전은 OpenAI API를 사용하지 않습니다. "
-    "OCR 결과는 캘린더에 추가하기 전에 직접 확인할 수 있습니다."
+    "포스터에서 찾은 정보는 캘린더에 추가하기 전에 직접 확인할 수 있습니다."
 )
 
 uploaded_files = st.file_uploader(
@@ -588,7 +782,7 @@ if uploaded_files:
     st.write(f"📁 선택한 포스터: **{len(uploaded_files)}장**")
 
     if st.button(
-        "🔎 선택한 포스터 모두 읽기",
+        "🔎 선택한 포스터에서 정보 찾기",
         type="primary",
         use_container_width=True
     ):
@@ -625,149 +819,152 @@ if uploaded_files:
 # =========================================================
 if st.session_state.events:
     st.divider()
-    st.subheader("📋 행사 정보 확인")
+    st.subheader("📋 행사 정보")
 
     for index, data in enumerate(st.session_state.events):
         source_name = data.get("source_name", f"행사 {index + 1}")
 
-        with st.container(border=True):
-            st.markdown(f"### {index + 1}. {source_name}")
+        with st.container():
+            # 한눈에 보는 행사 요약
+            render_event_summary(data, index)
 
             if data.get("ocr_error"):
                 st.warning(data["ocr_error"])
 
             if data.get("needs_review"):
-                st.warning("⚠️ OCR 결과 확인이 필요합니다.")
+                st.warning("⚠️ 자동 추출 결과를 확인해주세요.")
                 for reason in data.get("review_reasons", []):
                     st.write(f"• {reason}")
 
-            data["title"] = st.text_input(
-                "행사명",
-                value=data.get("title", ""),
-                key=f"title_{index}"
-            )
-
-            candidates = data.get("date_candidates", [])
-
-            if len(candidates) > 1:
-                labels = [
-                    f"{date} (후보 {i + 1})"
-                    for i, date in enumerate(candidates)
-                ]
-
-                current = data.get("selected_date", candidates[0])
-                current_index = (
-                    candidates.index(current)
-                    if current in candidates else 0
-                )
-
-                selected_index = st.selectbox(
-                    "📅 행사 날짜 선택",
-                    range(len(candidates)),
-                    index=current_index,
-                    format_func=lambda x: labels[x],
-                    key=f"date_select_{index}"
-                )
-
-                data["selected_date"] = candidates[selected_index]
-                data["date"] = candidates[selected_index]
-
-                st.info(
-                    "포스터에서 여러 날짜가 발견되었습니다. "
-                    "캘린더에 넣을 행사 날짜를 선택해주세요."
-                )
-
-            elif len(candidates) == 1:
-                data["date"] = st.text_input(
-                    "행사 날짜",
-                    value=data.get("date", ""),
-                    placeholder="2026-10-12",
-                    key=f"date_{index}"
-                )
-            else:
-                data["date"] = st.text_input(
-                    "행사 날짜",
-                    value=data.get("date", ""),
-                    placeholder="2026-10-12",
-                    key=f"date_manual_{index}"
-                )
-
-            data["deadline"] = st.text_input(
-                "📝 신청 마감일",
-                value=data.get("deadline", ""),
-                placeholder="2026-10-05",
-                key=f"deadline_{index}"
-            )
-
-            if data.get("deadline"):
+            # 사용자가 수정할 수 있는 영역은 접어서 제공
+            with st.expander("✏️ 정보 수정 / 자세히 보기"):
                 st.caption(
-                    f"신청 마감일: {data['deadline']} "
-                    "※ 캘린더 행사 날짜와 별도로 관리됩니다."
+                    f"원본 포스터: {source_name} · "
+                    "포스터에서 자동으로 찾은 정보를 수정할 수 있습니다."
                 )
 
-            col1, col2 = st.columns(2)
-
-            with col1:
-                data["start_time"] = st.text_input(
-                    "시작 시간",
-                    value=data.get("start_time", ""),
-                    placeholder="19:00",
-                    key=f"start_{index}"
+                data["title"] = st.text_input(
+                    "행사명",
+                    value=data.get("title", ""),
+                    key=f"title_{index}"
                 )
 
-            with col2:
-                data["end_time"] = st.text_input(
-                    "종료 시간",
-                    value=data.get("end_time", ""),
-                    placeholder="20:00",
-                    key=f"end_{index}"
-                )
+                candidates = data.get("date_candidates", [])
 
-            col1, col2 = st.columns(2)
+                if len(candidates) > 1:
+                    labels = [
+                        f"{date} (후보 {i + 1})"
+                        for i, date in enumerate(candidates)
+                    ]
 
-            with col1:
-                data["end_date"] = st.text_input(
-                    "종료 날짜",
-                    value=data.get("end_date", "") or data.get("date", ""),
-                    placeholder="2026-10-12",
-                    key=f"end_date_{index}"
-                )
+                    current = data.get("selected_date", candidates[0])
+                    current_index = (
+                        candidates.index(current)
+                        if current in candidates else 0
+                    )
 
-            with col2:
+                    selected_index = st.selectbox(
+                        "📅 행사 날짜 선택",
+                        range(len(candidates)),
+                        index=current_index,
+                        format_func=lambda x: labels[x],
+                        key=f"date_select_{index}"
+                    )
+
+                    data["selected_date"] = candidates[selected_index]
+                    data["date"] = candidates[selected_index]
+
+                    st.info(
+                        "포스터에서 여러 날짜가 발견되었습니다. "
+                        "캘린더에 넣을 행사 날짜를 선택해주세요."
+                    )
+                else:
+                    data["date"] = st.text_input(
+                        "행사 날짜",
+                        value=data.get("date", ""),
+                        placeholder="2026-10-12",
+                        key=f"date_{index}"
+                    )
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    data["end_date"] = st.text_input(
+                        "종료 날짜",
+                        value=data.get("end_date", "") or data.get("date", ""),
+                        placeholder="2026-10-12",
+                        key=f"end_date_{index}"
+                    )
+
+                with col2:
+                    data["deadline"] = st.text_input(
+                        "신청 마감일",
+                        value=data.get("deadline", ""),
+                        placeholder="2026-10-05",
+                        key=f"deadline_{index}"
+                    )
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    data["start_time"] = st.text_input(
+                        "시작 시간",
+                        value=data.get("start_time", ""),
+                        placeholder="19:00",
+                        key=f"start_{index}"
+                    )
+
+                with col2:
+                    data["end_time"] = st.text_input(
+                        "종료 시간",
+                        value=data.get("end_time", ""),
+                        placeholder="20:00",
+                        key=f"end_{index}"
+                    )
+
                 data["location"] = st.text_input(
                     "장소",
                     value=data.get("location", ""),
                     key=f"location_{index}"
                 )
 
-            data["organizer"] = st.text_input(
-                "주최 / 주관",
-                value=data.get("organizer", ""),
-                key=f"organizer_{index}"
-            )
+                data["organizer"] = st.text_input(
+                    "주최 / 주관",
+                    value=data.get("organizer", ""),
+                    key=f"organizer_{index}"
+                )
 
-            data["fee"] = st.text_input(
-                "참가비",
-                value=data.get("fee", ""),
-                key=f"fee_{index}"
-            )
+                data["fee"] = st.text_input(
+                    "참가비",
+                    value=data.get("fee", ""),
+                    key=f"fee_{index}"
+                )
 
-            data["url"] = st.text_input(
-                "신청 URL",
-                value=data.get("url", ""),
-                key=f"url_{index}"
-            )
+                data["url"] = st.text_input(
+                    "신청 URL",
+                    value=data.get("url", ""),
+                    key=f"url_{index}"
+                )
 
-            data["description"] = st.text_area(
-                "설명",
-                value=data.get("description", ""),
-                height=120,
-                key=f"description_{index}"
-            )
+                st.text_area(
+                    "포스터에서 확인한 내용",
+                    value=data.get("ocr_text", ""),
+                    height=130,
+                    key=f"poster_text_view_{index}",
+                    disabled=True
+                )
+
+                # 핵심 내용은 사용자가 직접 한 줄 요약으로 바꾸는 대신
+                # OCR 원문에서 자동으로 보기 좋게 표시
+                st.markdown("**✨ 자동 요약**")
+                st.info(make_keyword_summary(data.get("ocr_text", "")))
+
+                # description은 내부적으로 OCR 원문을 유지
+                data["description"] = data.get("ocr_text", "")
 
             if data.get("needs_review"):
                 data["confirmed"] = st.checkbox(
-                    "⚠️ OCR 결과와 수정한 정보를 확인했습니다.",
+                    "⚠️ 자동 추출 결과와 수정한 정보를 확인했습니다.",
                     value=data.get("confirmed", False),
                     key=f"confirm_{index}"
                 )
@@ -781,7 +978,7 @@ if st.session_state.events:
             if duplicate:
                 st.error(
                     "🚫 이미 추가한 행사입니다. "
-                    "같은 행사 날짜·장소로 다시 추가할 수 없습니다."
+                    "같은 행사명·날짜·장소의 행사는 중복 추가할 수 없습니다."
                 )
                 continue
 
@@ -799,22 +996,26 @@ if st.session_state.events:
             calendar_url = make_google_calendar_url(data)
             ics = make_ics(data)
 
-            if calendar_url:
-                st.link_button(
-                    "🗓️ Google Calendar에 추가",
-                    calendar_url,
-                    use_container_width=True
-                )
+            col1, col2 = st.columns(2)
 
-            if ics:
-                st.download_button(
-                    "📥 .ics 파일 다운로드",
-                    data=ics,
-                    file_name=f"event_{index + 1}.ics",
-                    mime="text/calendar",
-                    use_container_width=True,
-                    key=f"ics_{index}"
-                )
+            with col1:
+                if calendar_url:
+                    st.link_button(
+                        "🗓️ Google Calendar에 추가",
+                        calendar_url,
+                        use_container_width=True
+                    )
+
+            with col2:
+                if ics:
+                    st.download_button(
+                        "📥 .ics 파일 다운로드",
+                        data=ics,
+                        file_name=f"event_{index + 1}.ics",
+                        mime="text/calendar",
+                        use_container_width=True,
+                        key=f"ics_{index}"
+                    )
 
             if st.button(
                 "✅ 캘린더에 추가 완료로 표시",
@@ -827,10 +1028,6 @@ if st.session_state.events:
                 data["added"] = True
                 st.session_state.events[index] = data
                 st.rerun()
-
-            with st.expander("📄 OCR 원문 보기"):
-                st.text(data.get("ocr_text", ""))
-
 
 # =========================================================
 # ADDED EVENTS
@@ -849,5 +1046,5 @@ if st.session_state.added_event_keys:
 
 st.divider()
 st.caption(
-    "Poster Calendar · 여러 포스터 · 날짜 선택 · 마감일 구분 · OCR 확인 · 중복 방지"
+    "Poster Calendar · 여러 포스터 · 날짜 선택 · 마감일 구분 · 정보 확인 · 중복 방지"
 )
