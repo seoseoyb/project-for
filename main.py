@@ -298,31 +298,74 @@ def extract_deadline(text):
 # =========================================================
 # TIME
 # =========================================================
+def _normalize_clock(hour, minute=0, meridiem=""):
+    hour = int(hour)
+    minute = int(minute or 0)
+    if meridiem in ("오후", "PM", "pm") and hour < 12:
+        hour += 12
+    if meridiem in ("오전", "AM", "am") and hour == 12:
+        hour = 0
+    if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+        return ""
+    return f"{hour:02d}:{minute:02d}"
+
+
 def extract_time_range(text):
-    """포스터에서 시작/종료 시간을 찾아 반환합니다."""
-    # 10:00~12:00 / 10:00 - 12:00 / 10시~12시
-    patterns = [
-        r"(?<!\d)([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)\s*(?:~|〜|-|–|—|부터)\s*([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)",
-        r"(?<!\d)([01]?\d|2[0-3])\s*시(?:\s*([0-5]\d)\s*분)?\s*(?:~|〜|-|–|—|부터)\s*([01]?\d|2[0-3])\s*시(?:\s*([0-5]\d)\s*분)?"
-    ]
-    for pattern in patterns:
-        m = re.search(pattern, text)
-        if m:
-            g = m.groups()
-            if len(g) == 4:
-                return f"{int(g[0]):02d}:{int(g[1]):02d}", f"{int(g[2]):02d}:{int(g[3]):02d}"
+    """오전/오후, AM/PM, 시/분, 콜론 표기를 포함해 시작·종료 시간을 찾습니다."""
+    text = clean_extracted_lines(text)
 
-    # 단일 시간은 시작 시간으로 처리
-    m = re.search(r"(?<!\d)([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)", text)
-    if m:
-        return f"{int(m.group(1)):02d}:{int(m.group(2)):02d}", ""
+    # 예: 오전 10시 ~ 오후 4시 / AM 10:00 ~ PM 05:00
+    meridiem_range = re.search(
+        r"(?i)(오전|오후|AM|PM)\s*(\d{1,2})(?:\s*[:.]\s*(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)?\s*(?:~|〜|～|-|–|—|부터)\s*"
+        r"(오전|오후|AM|PM)?\s*(\d{1,2})(?:\s*[:.]\s*(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)?",
+        text
+    )
+    if meridiem_range:
+        g = meridiem_range.groups()
+        sm, sh, sc, sk, em, eh, ec, ek = g
+        smin = sc or sk or 0
+        emin = ec or ek or 0
+        # 종료에 오전/오후가 없으면 시작의 오전/오후를 기본 적용
+        em = em or sm
+        start = _normalize_clock(sh, smin, sm)
+        end = _normalize_clock(eh, emin, em)
+        if start and end:
+            # 오전 10시 ~ 4시는 일반적으로 오후 4시로 해석
+            if em == sm and end <= start and sm in ("오전", "AM", "am"):
+                end = _normalize_clock(eh, emin, "오후")
+            return start, end
 
-    m = re.search(r"(오전|오후)\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?", text)
-    if m:
-        hour = int(m.group(2)); minute = int(m.group(3) or 0)
-        if m.group(1) == "오후" and hour < 12: hour += 12
-        if m.group(1) == "오전" and hour == 12: hour = 0
-        return f"{hour:02d}:{minute:02d}", ""
+    # 예: 10:00~16:00 / 10.00 - 16.00
+    colon_range = re.search(
+        r"(?<!\d)([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)\s*(?:~|〜|～|-|–|—|부터)\s*([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)",
+        text
+    )
+    if colon_range:
+        g = colon_range.groups()
+        return _normalize_clock(g[0], g[1]), _normalize_clock(g[2], g[3])
+
+    # 예: 10시~16시 / 10시 30분 ~ 16시
+    korean_range = re.search(
+        r"(?<!\d)([01]?\d|2[0-3])\s*시(?:\s*([0-5]?\d)\s*분)?\s*(?:~|〜|～|-|–|—|부터)\s*([01]?\d|2[0-3])\s*시(?:\s*([0-5]?\d)\s*분)?",
+        text
+    )
+    if korean_range:
+        g = korean_range.groups()
+        return _normalize_clock(g[0], g[1] or 0), _normalize_clock(g[2], g[3] or 0)
+
+    # 단일 AM/PM 시간
+    single_ampm = re.search(
+        r"(?i)(오전|오후|AM|PM)\s*(\d{1,2})(?:\s*[:.]\s*(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)?",
+        text
+    )
+    if single_ampm:
+        g = single_ampm.groups()
+        return _normalize_clock(g[1], g[2] or g[3] or 0, g[0]), ""
+
+    # 단일 24시간 표기
+    single_colon = re.search(r"(?<!\d)([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)(?!\d)", text)
+    if single_colon:
+        return _normalize_clock(single_colon.group(1), single_colon.group(2)), ""
 
     return "", ""
 
@@ -426,50 +469,71 @@ def extract_organizer(text):
     return ""
 
 
-def extract_special_info(text):
-    """포스터의 추가 정보를 사람이 읽기 쉬운 형태로 정리합니다."""
+def _extract_labeled_values(text, label_patterns):
+    """라벨이 같은 줄/다음 줄에 있는 경우 모두 찾아 값만 반환합니다."""
     text = clean_extracted_lines(text)
-    lines = [re.sub(r"\s+", " ", line).strip(" -–—|") for line in text.splitlines() if line.strip()]
-    patterns = [
+    lines = [re.sub(r"\s+", " ", x).strip(" -–—|:") for x in text.splitlines() if x.strip()]
+    values = []
+    for i, line in enumerate(lines):
+        for pat in label_patterns:
+            m = re.search(rf"(?:^|\b){pat}\s*[:：|lI1\-]?\s*(.*)$", line, flags=re.I)
+            if not m:
+                continue
+            value = m.group(1).strip(" :：|lI1-–—")
+            if value and len(value) <= 160:
+                values.append(value)
+            elif i + 1 < len(lines):
+                nxt = lines[i + 1].strip(" :：|lI1-–—")
+                if nxt and len(nxt) <= 160:
+                    values.append(nxt)
+            break
+    # 중복 제거
+    out=[]
+    for v in values:
+        if v and v not in out:
+            out.append(v)
+    return out
+
+
+def extract_special_info(text):
+    """초청 가수/출연진 등 행사 특유의 추가 정보를 추출합니다."""
+    result = []
+    groups = [
         ("🎤 초청 가수", [r"초청\s*가수", r"초청가수"]),
-        ("🎤 출연진", [r"출연진", r"출연\s*:", r"게스트"]),
-        ("🎬 프로그램", [r"주요\s*프로그램", r"프로그램", r"공연\s*내용"]),
-        ("👥 대상", [r"참가\s*대상", r"참여\s*대상", r"대상"]),
-        ("💰 참가비", [r"참가비", r"입장료", r"티켓"]),
-        ("📞 문의", [r"문의처", r"문의", r"연락처"]),
+        ("🎤 출연진", [r"출연진", r"출연\s*아티스트", r"게스트"]),
+        ("🎬 주요 프로그램", [r"주요\s*프로그램", r"프로그램", r"공연\s*내용"]),
+    ]
+    for label, patterns in groups:
+        values = _extract_labeled_values(text, patterns)
+        if values:
+            result.append({"label": label, "value": " / ".join(values[:2])})
+    return result
+
+
+def extract_participation_info(text):
+    """참가비·참가대상·참여방법은 핵심 내용과 분리해 보여줍니다."""
+    groups = [
+        ("💰 참가비", [r"참가\s*비", r"참여\s*비", r"입장료", r"참가비용"]),
+        ("👥 참가 대상", [r"참가\s*대상", r"참여\s*대상", r"대상"]),
+        ("📝 참여 방법", [r"참여\s*방법", r"참가\s*방법", r"신청\s*방법", r"접수\s*방법", r"신청\s*및\s*접수"]),
     ]
     result=[]
-    for label, pats in patterns:
-        values=[]
-        for line in lines:
-            for pat in pats:
-                m=re.search(rf"(?:^|[|·•])\s*{pat}\s*[:：\-]?\s*(.*)$", line, flags=re.I)
-                if m:
-                    value=m.group(1).strip(" :：-–—|")
-                    # 라벨만 있는 경우에는 바로 다음 줄도 후보로 사용
-                    if value and len(value) <= 120 and value not in values:
-                        values.append(value)
-                    elif not value:
-                        idx=lines.index(line)
-                        if idx+1 < len(lines):
-                            nxt=lines[idx+1].strip(" :：-–—|")
-                            if nxt and len(nxt)<=120 and nxt not in values:
-                                values.append(nxt)
-                    break
+    for label, patterns in groups:
+        values=_extract_labeled_values(text, patterns)
         if values:
             result.append({"label":label, "value":" / ".join(values[:2])})
     return result
 
+
 def extract_fee(text):
-    keywords = ["무료", "참가비", "입장료", "티켓", "원", "₩"]
-    found = []
-
-    for line in text.splitlines():
-        line = line.strip()
-        if line and any(k.lower() in line.lower() for k in keywords):
-            found.append(line)
-
-    return "\n".join(found[:3])
+    vals = _extract_labeled_values(text, [r"참가\s*비", r"참여\s*비", r"입장료", r"참가비용"])
+    if vals:
+        return " / ".join(vals[:2])
+    # '무료'만 단독으로 있는 경우도 참가비로 표시
+    for line in clean_extracted_lines(text).splitlines():
+        if re.fullmatch(r"\s*무료\s*", line):
+            return "무료"
+    return ""
 
 
 def extract_title(text):
@@ -603,7 +667,7 @@ def make_event_data(text, source_name="", image_bytes=None):
         "date": date_candidates[0] if date_candidates else "",
         "deadline": deadline, "start_time": start_time, "end_date": date_candidates[0] if date_candidates else "",
         "end_time": end_time, "location": extract_location(text), "organizer": extract_organizer(text),
-        "fee": extract_fee(text), "url": extract_url(text), "special_info": special_info,
+        "fee": extract_fee(text), "url": extract_url(text), "special_info": special_info, "participation_info": extract_participation_info(text),
         "description": "", "ocr_text": text, "added": False, "confirmed": False,
     }
     reasons=[]
@@ -631,6 +695,7 @@ def empty_event_data(source_name=""):
         "location": "",
         "organizer": "",
         "special_info": [],
+        "participation_info": [],
         "fee": "",
         "url": "",
         "description": "",
@@ -880,6 +945,12 @@ def render_event_summary(data, index):
             st.divider(); st.markdown("**✨ 추가 정보**")
             for item in data["special_info"]:
                 st.write(f"{item['label']}  {item['value']}")
+
+        if data.get("participation_info"):
+            st.divider(); st.markdown("**🙋 참가 정보**")
+            for item in data["participation_info"]:
+                st.write(f"{item['label']}  {item['value']}")
+
         st.divider(); st.markdown("**💡 핵심 내용**")
         st.write(make_keyword_summary(data.get("ocr_text", ""), data))
 
@@ -1057,6 +1128,8 @@ if st.session_state.events:
 
                 st.markdown("**✨ 포스터에서 발견한 추가 정보**")
                 for item in data.get("special_info", []):
+                    st.write(f"{item['label']}  {item['value']}")
+                for item in data.get("participation_info", []):
                     st.write(f"{item['label']}  {item['value']}")
 
                 data["description"] = st.text_area(
