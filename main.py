@@ -23,16 +23,16 @@ st.markdown(
 
     /* 전체 테마: 따뜻한 크림 + 라벤더 포인트 */
     .stApp {
-        font-family: "Gowun Dodum", "Malgun Gothic", sans-serif;
-        background: linear-gradient(180deg, #f4effc 0%, #fbf8ff 48%, #fffaf3 100%);
+        font-family: "Jua", "Gowun Dodum", "Malgun Gothic", sans-serif;
+        background: linear-gradient(180deg, #eee7fb 0%, #f8f4ff 44%, #fff9f1 100%);
         color: #51485d;
     }
 
-    /* 화면 안의 일반 글씨까지 모두 동글동글한 폰트 적용 */
-    .stApp, .stApp p, .stApp label, .stApp div, .stApp span,
-    .stApp input, .stApp textarea, .stApp button, .stApp select,
-    .stApp [data-testid="stMarkdownContainer"], .stApp [data-testid="stCaptionContainer"] {
-        font-family: "Gowun Dodum", "Malgun Gothic", sans-serif !important;
+    /* 앱 전체를 동글동글한 글씨로 통일 */
+    .stApp p, .stApp label, .stApp input, .stApp textarea,
+    .stApp select, .stApp [data-testid="stMarkdownContainer"],
+    .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stFileUploaderDropzone"] {
+        font-family: "Jua", "Gowun Dodum", "Malgun Gothic", sans-serif !important;
     }
 
     /* Streamlit 아이콘은 아이콘 폰트를 유지 */
@@ -42,7 +42,7 @@ st.markdown(
         font-family: "Material Symbols Outlined" !important;
     }
 
-    h1, h2, h3 {
+    h1, h2, h3, h4, h5, h6 {
         font-family: "Jua", "Gowun Dodum", sans-serif !important;
         font-weight: 400 !important;
         letter-spacing: -0.02em;
@@ -51,7 +51,7 @@ st.markdown(
     /* 상단 제목 영역 */
     .main-title-wrap {
         text-align: center;
-        padding: 18px 12px 8px 12px;
+        padding: 24px 12px 12px 12px;
     }
 
     .main-title-wrap .main-title {
@@ -70,10 +70,11 @@ st.markdown(
 
     /* 업로드 영역 */
     [data-testid="stFileUploader"] {
-        background: rgba(255,255,255,0.82);
-        border: 2px dashed #d8cbed;
-        border-radius: 22px;
-        padding: 8px;
+        background: rgba(255,253,249,.92);
+        border: 2px dashed #cfc0dd;
+        border-radius: 18px 24px 20px 14px;
+        padding: 9px;
+        box-shadow: 3px 4px 0 rgba(218,203,226,.42), 0 10px 22px rgba(84,69,105,.07);
     }
 
     /* 메인 정보 찾기 버튼 */
@@ -93,36 +94,57 @@ st.markdown(
         box-shadow: 0 10px 22px rgba(113, 91, 155, 0.22);
     }
 
-    /* 다이어리처럼 보이는 결과 카드 */
+    /* ───────── 다이어리 노트형 행사 카드 ───────── */
     [data-testid="stVerticalBlockBorderWrapper"] {
         position: relative;
-        border-radius: 18px 22px 20px 16px !important;
-        border: 1px solid #e6dced !important;
-        background: #fffdf9 !important;
-        box-shadow: 0 10px 24px rgba(84, 69, 105, 0.09), 0 2px 0 #eadff0;
-        padding-top: 10px !important;
+        margin: 28px 0 34px 0 !important;
+        padding: 28px 28px 24px 42px !important;
+        border-radius: 10px 18px 14px 12px !important;
+        border: 1px solid #e4d8ea !important;
+        border-left: 3px solid #d7c3df !important;
+        background-color: #fffdf8 !important;
+        background-image:
+            linear-gradient(to right, transparent 0, transparent 31px, rgba(218,191,211,.30) 32px, transparent 33px),
+            repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(196,185,211,.18) 32px, transparent 33px);
+        box-shadow: 4px 7px 0 rgba(214,197,224,.45), 0 14px 30px rgba(84,69,105,.10);
         overflow: visible !important;
     }
 
-    /* 노트 윗부분의 작은 테이프 장식 */
+    /* 노트 위에 붙인 마스킹테이프 */
     [data-testid="stVerticalBlockBorderWrapper"]::before {
         content: "";
         position: absolute;
-        top: -9px;
+        z-index: 5;
+        top: -13px;
         left: 50%;
-        transform: translateX(-50%) rotate(-1deg);
-        width: 92px;
-        height: 22px;
+        transform: translateX(-50%) rotate(-2deg);
+        width: 108px;
+        height: 28px;
         border-radius: 5px;
-        background: rgba(215, 201, 232, 0.78);
-        box-shadow: 0 2px 5px rgba(90,70,110,0.08);
+        background: rgba(211,194,232,.82);
+        box-shadow: 0 2px 5px rgba(90,70,110,.10);
+    }
+
+    /* 노트의 왼쪽 바인더 구멍 느낌 */
+    [data-testid="stVerticalBlockBorderWrapper"]::after {
+        content: "";
+        position: absolute;
+        left: 8px;
+        top: 42px;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #d6c4dd;
+        box-shadow: 0 39px #d6c4dd, 0 78px #d6c4dd, 0 117px #d6c4dd, 0 156px #d6c4dd, 0 195px #d6c4dd;
     }
 
     .event-title {
+        font-family: "Jua", "Gowun Dodum", sans-serif;
         font-size: 32px;
-        font-weight: 800;
+        font-weight: 400;
         line-height: 1.25;
         margin-bottom: 22px;
+        color: #51445f;
     }
 
     .event-main-info {
@@ -172,11 +194,25 @@ st.markdown(
 
     /* 다이어리 메모지 느낌의 핵심 정보 */
     .diary-note {
-        margin: 10px 0 14px 0;
-        padding: 15px 18px;
-        border-radius: 12px;
-        border: 1px dashed #d8c9e3;
-        background: #fffaf4;
+        position: relative;
+        margin: 11px 0 14px 0;
+        padding: 14px 18px 15px 18px;
+        border-radius: 8px 13px 10px 7px;
+        border: 1px dashed #d6c6df;
+        background: rgba(255,250,244,.88);
+        box-shadow: 2px 3px 0 rgba(219,203,227,.34);
+    }
+
+    .diary-note::after {
+        content: "";
+        position: absolute;
+        right: 10px;
+        top: 8px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid #d9c9df;
+        background: #fffdf8;
     }
 
     .diary-label {
@@ -189,6 +225,31 @@ st.markdown(
     .diary-value {
         font-size: 18px;
         color: #50465b;
+    }
+
+    /* 확장/수정 버튼 안의 아이콘이 글씨와 겹치지 않도록 아이콘 폰트를 강제로 분리 */
+    .stApp span[class*="material-symbols"],
+    .stApp span[class*="material-icons"],
+    .stApp i[class*="material-symbols"],
+    .stApp i[class*="material-icons"] {
+        font-family: "Material Symbols Outlined", "Material Icons" !important;
+        font-weight: normal !important;
+        font-style: normal !important;
+        letter-spacing: normal !important;
+    }
+
+    /* 정보 수정 / OCR 확인 영역은 버튼 높이와 여백을 넉넉하게 */
+    .stApp [data-testid="stExpander"] summary {
+        min-height: 48px !important;
+        line-height: 1.5 !important;
+        padding: 11px 14px !important;
+        border-radius: 12px !important;
+        font-family: "Jua", "Gowun Dodum", sans-serif !important;
+    }
+
+    .stApp [data-testid="stExpander"] summary p,
+    .stApp [data-testid="stExpander"] summary span:not([class*="material"]) {
+        font-family: "Jua", "Gowun Dodum", sans-serif !important;
     }
 
     @media (max-width: 700px) {
@@ -455,7 +516,7 @@ def extract_time_range(text):
 
     # 예: 10:00~16:00 / 10.00 - 16.00
     colon_range = re.search(
-        r"(?<!\d)([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)\s*(?:~|〜|～|-|–|—|부터)\s*([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)",
+        r"(?<![\d.])([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)\s*(?:~|〜|～|-|–|—|부터)\s*([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)",
         text
     )
     if colon_range:
@@ -481,7 +542,7 @@ def extract_time_range(text):
         return _normalize_clock(g[1], g[2] or g[3] or 0, g[0]), ""
 
     # 단일 24시간 표기
-    single_colon = re.search(r"(?<!\d)([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)(?!\d)", text)
+    single_colon = re.search(r"(?<![\d.])([01]?\d|2[0-3])\s*:\s*([0-5]\d)(?!\d)", text)
     if single_colon:
         return _normalize_clock(single_colon.group(1), single_colon.group(2)), ""
 
@@ -1049,29 +1110,41 @@ def make_keyword_summary(text, data=None):
                 break
         return " ".join(selected)
 
-    # 설명이 없으면 제목과 전체 OCR 텍스트에서 행사 성격을 추려 해시태그로 표시합니다.
-    hashtag_rules = [
-        ("#음악", ["음악", "가수", "밴드", "콘서트", "뮤직", "버스킹"]),
-        ("#공연", ["공연", "무대", "출연", "아티스트", "공연팀"]),
-        ("#축제", ["축제", "페스티벌", "페스타"]),
-        ("#전시", ["전시", "갤러리", "미술", "작품"]),
-        ("#체험", ["체험", "워크숍", "워크샵", "체험존"]),
-        ("#스포츠", ["스포츠", "운동", "달리기", "마라톤", "경기", "체육"]),
-        ("#마켓", ["마켓", "플리마켓", "부스", "푸드"]),
-        ("#강연", ["강연", "세미나", "토크", "포럼"]),
-        ("#대회", ["대회", "공모전", "경연", "선발전"]),
-        ("#가족", ["가족", "어린이", "키즈"]),
-        ("#지역행사", ["주민", "지역", "마을", "시민"]),
-    ]
-
+    # 설명 문장이 없더라도 포스터의 단어 조합으로 행사 성격을 자연스럽게 표현합니다.
     searchable = " ".join(lines + [title]).lower()
-    tags = []
-    for tag, words in hashtag_rules:
-        if any(word.lower() in searchable for word in words):
-            tags.append(tag)
+    has_music = any(w in searchable for w in ["음악", "노래", "가수", "밴드", "콘서트", "뮤직", "버스킹"])
+    has_festival = any(w in searchable for w in ["축제", "페스티벌", "페스타"])
+    has_performance = any(w in searchable for w in ["공연", "무대", "출연", "아티스트", "공연팀"])
+    has_exhibition = any(w in searchable for w in ["전시", "갤러리", "미술", "작품"])
+    has_experience = any(w in searchable for w in ["체험", "워크숍", "워크샵", "체험존"])
+    has_sports = any(w in searchable for w in ["스포츠", "운동", "달리기", "마라톤", "경기", "체육"])
+    has_market = any(w in searchable for w in ["마켓", "플리마켓", "부스", "푸드"])
+    has_lecture = any(w in searchable for w in ["강연", "세미나", "토크", "포럼"])
+    has_contest = any(w in searchable for w in ["대회", "공모전", "경연", "선발전"])
 
-    # '축제'만 잡힌 경우에도 제목에 음악/공연 등의 구체적인 성격이 있으면 함께 표시합니다.
-    return " ".join(tags[:4]) if tags else "#행사"
+    phrases = []
+    if has_music and has_festival:
+        phrases.append("음악 페스티벌")
+    elif has_music and has_performance:
+        phrases.append("음악 공연")
+    elif has_music:
+        phrases.append("음악 행사")
+    elif has_performance and has_festival:
+        phrases.append("공연 페스티벌")
+    elif has_performance:
+        phrases.append("공연 행사")
+    elif has_festival:
+        phrases.append("축제")
+
+    if has_exhibition: phrases.append("전시")
+    if has_experience: phrases.append("체험")
+    if has_sports: phrases.append("스포츠")
+    if has_market: phrases.append("마켓")
+    if has_lecture: phrases.append("강연")
+    if has_contest: phrases.append("대회")
+
+    # 구체적인 키워드가 없을 때만 일반적인 행사명을 표시합니다.
+    return " · ".join(dict.fromkeys(phrases)) if phrases else "행사 프로그램 및 활동 정보 확인 필요"
 
 def render_event_summary(data, index):
     title=data.get("title", "").strip() or "행사명 확인 필요"
