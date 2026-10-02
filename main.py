@@ -21,7 +21,7 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
 
-    .stApp, .stApp * {
+    .stApp {
         font-family: "Noto Sans KR", "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
     }
 
@@ -235,10 +235,7 @@ def date_from_match(match):
 
 
 def extract_date_candidates(text):
-    """
-    포스터에서 발견되는 날짜를 모두 찾고,
-    '마감/신청/접수' 주변의 날짜는 신청 마감일 후보로 분류합니다.
-    """
+    """포스터의 실제 행사 날짜만 찾고, 시간 표기를 날짜로 오인하지 않도록 합니다."""
     patterns = [
         r"(20\d{2})[.\-/년]\s*(\d{1,2})[.\-/월]\s*(\d{1,2})",
         r"(20\d{2})\s+(\d{1,2})\s+(\d{1,2})",
@@ -247,6 +244,24 @@ def extract_date_candidates(text):
     ]
 
     found = []
+    date_labels = ("일시", "날짜", "기간", "일정", "행사일", "개최일")
+    deadline_words = [
+        "마감", "신청", "접수", "등록", "지원",
+        "신청기간", "접수기간", "까지"
+    ]
+
+    # 시간처럼 보이는 숫자 표기의 위치를 미리 기억합니다.
+    time_spans = []
+    time_patterns = [
+        r"(?i)(?:오전|오후|AM|PM)\s*(?:[01]?\d|2[0-3])(?:\s*[:.]\s*[0-5]\d|\s*시(?:\s*[0-5]?\d\s*분)?)?",
+        r"(?<!\d)(?:[01]?\d|2[0-3])\s*[:.]\s*[0-5]\d(?!\d)",
+        r"(?<!\d)(?:[01]?\d|2[0-3])\s*시(?:\s*[0-5]?\d\s*분)?"
+    ]
+    for tp in time_patterns:
+        time_spans.extend((m.start(), m.end()) for m in re.finditer(tp, text))
+
+    def overlaps_time(match):
+        return any(match.start() < end and match.end() > start for start, end in time_spans)
 
     for pattern in patterns:
         for match in re.finditer(pattern, text):
@@ -254,19 +269,21 @@ def extract_date_candidates(text):
             if not date_obj:
                 continue
 
+            # 10.30 같은 표기가 실제 시간(10:30)으로 읽힌 경우 날짜에서 제외합니다.
+            # 단, '일시/날짜/기간' 같은 날짜 라벨이 같은 줄에 있으면 날짜로 인정합니다.
+            line_start = text.rfind("\n", 0, match.start()) + 1
+            line_end = text.find("\n", match.end())
+            if line_end == -1:
+                line_end = len(text)
+            line = text[line_start:line_end]
+            has_date_label = any(label in line for label in date_labels)
+            if overlaps_time(match) and not has_date_label:
+                continue
+
             start = max(0, match.start() - 35)
             end = min(len(text), match.end() + 35)
             context = text[start:end]
-
-            deadline_words = [
-                "마감", "신청", "접수", "등록", "지원",
-                "신청기간", "접수기간", "까지"
-            ]
-
-            is_deadline = any(
-                word in context
-                for word in deadline_words
-            )
+            is_deadline = any(word in context for word in deadline_words)
 
             found.append({
                 "date": date_obj.strftime("%Y-%m-%d"),
@@ -277,7 +294,6 @@ def extract_date_candidates(text):
 
     unique = []
     seen = set()
-
     for item in sorted(found, key=lambda x: x["position"]):
         key = (item["date"], item["is_deadline"])
         if key not in seen:
@@ -875,51 +891,94 @@ def make_ics(data):
 # DISPLAY HELPERS
 # =========================================================
 def make_keyword_summary(text, data=None):
-    """날짜/시간/장소/문의 같은 메타정보를 빼고 행사 활동·프로그램 중심으로 요약합니다."""
+    """포스터에 실제 설명이 있으면 짧게 요약하고, 설명이 없으면 해시태그로 핵심 주제만 보여줍니다."""
     if not text:
-        return "행사 내용이 없습니다."
+        return "#행사"
+
     text = clean_extracted_lines(text)
-    lines=[re.sub(r"\s+", " ", x).strip(" -–—|•·") for x in text.splitlines() if x.strip()]
-    title=(data or {}).get("title", "").strip()
-    location=(data or {}).get("location", "").strip()
-    organizer=(data or {}).get("organizer", "").strip()
-    excluded_words=[
+    lines = [re.sub(r"\s+", " ", x).strip(" -–—|•·") for x in text.splitlines() if x.strip()]
+    data = data or {}
+    title = data.get("title", "").strip()
+    location = data.get("location", "").strip()
+    organizer = data.get("organizer", "").strip()
+
+    metadata_words = [
         "장소", "주최", "주관", "문의", "연락처", "신청", "접수", "마감", "등록",
-        "일시", "날짜", "시간", "주소", "홈페이지", "http://", "https://", "www.",
-        "참가비", "입장료", "전화", "이메일", "이메일주소", "신청기간"
+        "일시", "날짜", "시간", "기간", "일정", "주소", "홈페이지", "http://", "https://",
+        "www.", "참가비", "입장료", "전화", "이메일", "신청기간", "접수기간",
+        "참가대상", "참여대상", "참여방법", "신청방법", "접수방법"
     ]
-    activity_words=[
-        "공연", "콘서트", "체험", "전시", "강연", "토크", "게임", "대회", "경기",
-        "마켓", "부스", "워크숍", "워크샵", "축하", "출연", "가수", "밴드", "댄스",
-        "이벤트", "프로그램", "행사", "축제", "페스티벌", "캠페인", "상영", "발표"
-    ]
-    useful=[]
-    for line in lines:
-        if len(line)<4 or line == title or line == location or line == organizer:
-            continue
-        if any(w in line for w in excluded_words):
-            continue
+
+    def is_date_or_time(line):
         if re.search(r"20\d{2}.*\d{1,2}.*\d{1,2}", line):
+            return True
+        if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일", line):
+            return True
+        if re.search(r"(?<!\d)(?:[01]?\d|2[0-3])\s*[:.]\s*[0-5]\d(?!\d)", line):
+            return True
+        if re.search(r"(?:오전|오후|AM|PM)?\s*(?:[01]?\d|2[0-3])\s*시", line, re.I):
+            return True
+        return False
+
+    # 1) 설명문/프로그램 문장이 실제로 있는지 먼저 찾습니다.
+    description_candidates = []
+    content_words = [
+        "공연", "콘서트", "체험", "전시", "강연", "토크", "게임", "대회", "경기",
+        "마켓", "부스", "워크숍", "워크샵", "출연", "가수", "밴드", "댄스",
+        "프로그램", "축제", "페스티벌", "캠페인", "상영", "발표", "먹거리", "볼거리",
+        "즐길", "진행", "운영", "마련", "참여", "초청"
+    ]
+    sentence_endings = ("합니다", "됩니다", "하세요", "보세요", "진행", "운영", "마련", "즐길", "참여")
+
+    for line in lines:
+        if len(line) < 10 or line == title or line == location or line == organizer:
             continue
-        if re.search(r"\d{1,2}\s*[:시]\s*\d{0,2}", line):
+        if any(word in line for word in metadata_words):
             continue
-        # 숫자/기호만 남은 OCR 오류 제거
+        if is_date_or_time(line):
+            continue
         if re.fullmatch(r"[\d\s|lI._-]+", line):
             continue
-        # 행사명 유형 단어만 있는 줄은 핵심 내용으로 쓰지 않음
-        if line.lower().strip() in {"페스티벌","축제","행사","공연","콘서트","festival","event"}:
+        # 단순한 행사 유형 단어 하나만 있는 줄은 설명으로 보지 않습니다.
+        if line.lower().strip(" .") in {"페스티벌", "축제", "행사", "공연", "콘서트", "festival", "event"}:
             continue
-        score=sum(2 for w in activity_words if w in line)
-        if score or len(line)>=8:
-            useful.append((score,line))
-    useful.sort(key=lambda x:x[0], reverse=True)
-    selected=[]
-    for _,line in useful:
-        if line not in selected:
-            selected.append(line)
-        if len(selected)>=4:
-            break
-    return "  ·  ".join(x[:70] + ("…" if len(x)>70 else "") for x in selected) or "포스터에 행사 활동이나 프로그램 정보가 표시되어 있지 않습니다."
+        # 활동/프로그램을 설명하거나 문장 형태인 경우에만 '내용'으로 인정합니다.
+        if any(word in line for word in content_words) or line.endswith(sentence_endings):
+            description_candidates.append(line)
+
+    if description_candidates:
+        # 포스터에 실제 설명이 있으면 최대 2개 문장/문구만 간결하게 보여줍니다.
+        selected = []
+        for line in description_candidates:
+            if line not in selected:
+                selected.append(line[:100] + ("…" if len(line) > 100 else ""))
+            if len(selected) >= 2:
+                break
+        return " ".join(selected)
+
+    # 2) 설명이 거의 없으면 행사 성격을 해시태그로 간단히 표시합니다.
+    hashtag_rules = [
+        ("#음악", ["음악", "가수", "밴드", "콘서트", "뮤직"]),
+        ("#공연", ["공연", "무대", "출연", "아티스트"]),
+        ("#축제", ["축제", "페스티벌", "페스타"]),
+        ("#전시", ["전시", "갤러리", "미술", "작품"]),
+        ("#체험", ["체험", "워크숍", "워크샵"]),
+        ("#스포츠", ["스포츠", "운동", "달리기", "마라톤", "경기", "체육"]),
+        ("#마켓", ["마켓", "플리마켓", "부스"]),
+        ("#강연", ["강연", "세미나", "토크", "포럼"]),
+        ("#대회", ["대회", "공모전", "경연"]),
+        ("#가족", ["가족", "어린이", "키즈"]),
+        ("#지역행사", ["주민", "지역", "마을", "시민"]),
+    ]
+
+    searchable = " ".join(lines + [title])
+    tags = []
+    for tag, words in hashtag_rules:
+        if any(word in searchable for word in words):
+            tags.append(tag)
+
+    # 행사 성격을 전혀 특정할 수 없으면 기본 태그 하나만 표시합니다.
+    return " ".join(tags[:4]) if tags else "#행사"
 
 def render_event_summary(data, index):
     title=data.get("title", "").strip() or "행사명 확인 필요"
