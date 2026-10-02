@@ -19,32 +19,71 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap');
 
+    /* 전체 테마: 따뜻한 크림 + 라벤더 포인트 */
     .stApp {
-        font-family: "Noto Sans KR", "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+        font-family: "Gowun Dodum", "Malgun Gothic", sans-serif;
+        background: linear-gradient(180deg, #fcf9ff 0%, #fffdf8 55%, #f7fbff 100%);
     }
 
-    h1 {
-        font-family: "Noto Sans KR", "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif !important;
-        font-weight: 800 !important;
-        letter-spacing: -0.03em;
+    h1, h2, h3 {
+        font-family: "Jua", "Gowun Dodum", sans-serif !important;
+        font-weight: 400 !important;
+        letter-spacing: -0.02em;
     }
 
-    .event-card {
-        padding: 24px 26px;
-        border: 1px solid rgba(128,128,128,0.25);
-        border-radius: 18px;
-        margin: 8px 0 18px 0;
-        background: rgba(128,128,128,0.06);
+    /* 상단 제목 영역 */
+    .main-title-wrap {
+        text-align: center;
+        padding: 18px 12px 8px 12px;
     }
 
-    .event-number {
-        font-size: 13px;
-        font-weight: 700;
-        letter-spacing: 1.5px;
-        opacity: 0.6;
-        margin-bottom: 4px;
+    .main-title-wrap .main-title {
+        font-family: "Jua", "Gowun Dodum", sans-serif;
+        font-size: clamp(32px, 4vw, 48px);
+        line-height: 1.25;
+        color: #4b4266;
+        margin: 0;
+    }
+
+    .main-title-wrap .main-subtitle {
+        margin-top: 10px;
+        color: #81778f;
+        font-size: 16px;
+    }
+
+    /* 업로드 영역 */
+    [data-testid="stFileUploader"] {
+        background: rgba(255,255,255,0.82);
+        border: 2px dashed #d8cbed;
+        border-radius: 22px;
+        padding: 8px;
+    }
+
+    /* 메인 정보 찾기 버튼 */
+    div.stButton > button[kind="primary"] {
+        border-radius: 16px !important;
+        min-height: 52px !important;
+        font-family: "Jua", "Gowun Dodum", sans-serif !important;
+        font-size: 18px !important;
+        letter-spacing: -0.01em;
+        border: 0 !important;
+        box-shadow: 0 7px 18px rgba(113, 91, 155, 0.16);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    div.stButton > button[kind="primary"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 22px rgba(113, 91, 155, 0.22);
+    }
+
+    /* 결과 카드 */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border-radius: 24px !important;
+        border: 1px solid #e7def2 !important;
+        background: rgba(255,255,255,0.88) !important;
+        box-shadow: 0 8px 28px rgba(84, 69, 105, 0.07);
     }
 
     .event-title {
@@ -63,8 +102,9 @@ st.markdown(
     .info-item {
         flex: 1;
         padding: 15px 18px;
-        border-radius: 12px;
-        background: rgba(128,128,128,0.10);
+        border-radius: 16px;
+        background: #f7f3fc;
+        border: 1px solid #ebe3f4;
     }
 
     .info-label {
@@ -88,7 +128,7 @@ st.markdown(
     }
 
     .event-description {
-        border-top: 1px solid rgba(128,128,128,0.2);
+        border-top: 1px solid #eee7f4;
         padding-top: 16px;
     }
 
@@ -98,12 +138,9 @@ st.markdown(
     }
 
     @media (max-width: 700px) {
-        .event-title {
-            font-size: 25px;
-        }
-        .event-main-info {
-            flex-direction: column;
-        }
+        .event-title { font-size: 25px; }
+        .event-main-info { flex-direction: column; }
+        .main-title-wrap .main-title { font-size: 32px; }
     }
     </style>
     """,
@@ -146,7 +183,7 @@ def ocr_image(image):
             (
                 f"--{boundary}\r\n"
                 'Content-Disposition: form-data; name="OCREngine"\r\n\r\n'
-                "2\r\n"
+                "3\r\n"
             ),
             (
                 f"--{boundary}\r\n"
@@ -269,15 +306,17 @@ def extract_date_candidates(text):
             if not date_obj:
                 continue
 
-            # 10.30 같은 표기가 실제 시간(10:30)으로 읽힌 경우 날짜에서 제외합니다.
-            # 단, '일시/날짜/기간' 같은 날짜 라벨이 같은 줄에 있으면 날짜로 인정합니다.
+            # '2026.10.30'처럼 연도까지 포함된 날짜는 시간 패턴(10.30)과
+            # 일부가 겹치더라도 날짜로 인정합니다. 반대로 '10.30'처럼
+            # 연도가 없는 표기는 실제 시간일 수 있으므로 시간과 겹치면 제외합니다.
             line_start = text.rfind("\n", 0, match.start()) + 1
             line_end = text.find("\n", match.end())
             if line_end == -1:
                 line_end = len(text)
             line = text[line_start:line_end]
             has_date_label = any(label in line for label in date_labels)
-            if overlaps_time(match) and not has_date_label:
+            is_full_year_date = len(match.groups()) == 3 and bool(re.match(r"20\d{2}", match.group(1)))
+            if overlaps_time(match) and not has_date_label and not is_full_year_date:
                 continue
 
             start = max(0, match.start() - 35)
@@ -891,13 +930,13 @@ def make_ics(data):
 # DISPLAY HELPERS
 # =========================================================
 def make_keyword_summary(text, data=None):
-    """포스터에 실제 설명이 있으면 짧게 요약하고, 설명이 없으면 해시태그로 핵심 주제만 보여줍니다."""
+    """포스터 내용이 있으면 짧게 요약하고, 내용이 없으면 행사 성격을 해시태그로 표시합니다."""
+    data = data or {}
     if not text:
         return "#행사"
 
     text = clean_extracted_lines(text)
     lines = [re.sub(r"\s+", " ", x).strip(" -–—|•·") for x in text.splitlines() if x.strip()]
-    data = data or {}
     title = data.get("title", "").strip()
     location = data.get("location", "").strip()
     organizer = data.get("organizer", "").strip()
@@ -910,7 +949,7 @@ def make_keyword_summary(text, data=None):
     ]
 
     def is_date_or_time(line):
-        if re.search(r"20\d{2}.*\d{1,2}.*\d{1,2}", line):
+        if re.search(r"20\d{2}[.\-/년]\s*\d{1,2}[.\-/월]\s*\d{1,2}", line):
             return True
         if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일", line):
             return True
@@ -920,64 +959,64 @@ def make_keyword_summary(text, data=None):
             return True
         return False
 
-    # 1) 설명문/프로그램 문장이 실제로 있는지 먼저 찾습니다.
+    # 포스터에 실제 설명/프로그램 문장이 있는지 찾습니다.
     description_candidates = []
     content_words = [
         "공연", "콘서트", "체험", "전시", "강연", "토크", "게임", "대회", "경기",
         "마켓", "부스", "워크숍", "워크샵", "출연", "가수", "밴드", "댄스",
-        "프로그램", "축제", "페스티벌", "캠페인", "상영", "발표", "먹거리", "볼거리",
-        "즐길", "진행", "운영", "마련", "참여", "초청"
+        "프로그램", "캠페인", "상영", "발표", "먹거리", "볼거리", "즐길",
+        "진행", "운영", "마련", "참여", "초청", "만나요", "즐겨요", "즐길거리",
+        "체험존", "공연팀", "버스킹", "푸드", "놀이"
     ]
-    sentence_endings = ("합니다", "됩니다", "하세요", "보세요", "진행", "운영", "마련", "즐길", "참여")
+    generic_only = {"페스티벌", "축제", "행사", "공연", "콘서트", "festival", "event"}
 
     for line in lines:
-        if len(line) < 10 or line == title or line == location or line == organizer:
+        normalized = line.lower().strip(" .")
+        if len(line) < 10 or line in {title, location, organizer}:
+            continue
+        if normalized in generic_only:
             continue
         if any(word in line for word in metadata_words):
             continue
         if is_date_or_time(line):
             continue
-        if re.fullmatch(r"[\d\s|lI._-]+", line):
+        if re.fullmatch(r"[\d\s|lI._:/~()\-–—]+", line):
             continue
-        # 단순한 행사 유형 단어 하나만 있는 줄은 설명으로 보지 않습니다.
-        if line.lower().strip(" .") in {"페스티벌", "축제", "행사", "공연", "콘서트", "festival", "event"}:
-            continue
-        # 활동/프로그램을 설명하거나 문장 형태인 경우에만 '내용'으로 인정합니다.
-        if any(word in line for word in content_words) or line.endswith(sentence_endings):
+        # 문장형 설명 또는 프로그램/활동을 나타내는 구체적인 문구만 내용으로 사용합니다.
+        if any(word in line for word in content_words) or re.search(r"[.!?]$|합니다$|됩니다$|하세요$|보세요$|함께$|만나", line):
             description_candidates.append(line)
 
     if description_candidates:
-        # 포스터에 실제 설명이 있으면 최대 2개 문장/문구만 간결하게 보여줍니다.
         selected = []
         for line in description_candidates:
             if line not in selected:
-                selected.append(line[:100] + ("…" if len(line) > 100 else ""))
+                selected.append(line[:90] + ("…" if len(line) > 90 else ""))
             if len(selected) >= 2:
                 break
         return " ".join(selected)
 
-    # 2) 설명이 거의 없으면 행사 성격을 해시태그로 간단히 표시합니다.
+    # 설명이 없으면 제목과 전체 OCR 텍스트에서 행사 성격을 추려 해시태그로 표시합니다.
     hashtag_rules = [
-        ("#음악", ["음악", "가수", "밴드", "콘서트", "뮤직"]),
-        ("#공연", ["공연", "무대", "출연", "아티스트"]),
+        ("#음악", ["음악", "가수", "밴드", "콘서트", "뮤직", "버스킹"]),
+        ("#공연", ["공연", "무대", "출연", "아티스트", "공연팀"]),
         ("#축제", ["축제", "페스티벌", "페스타"]),
         ("#전시", ["전시", "갤러리", "미술", "작품"]),
-        ("#체험", ["체험", "워크숍", "워크샵"]),
+        ("#체험", ["체험", "워크숍", "워크샵", "체험존"]),
         ("#스포츠", ["스포츠", "운동", "달리기", "마라톤", "경기", "체육"]),
-        ("#마켓", ["마켓", "플리마켓", "부스"]),
+        ("#마켓", ["마켓", "플리마켓", "부스", "푸드"]),
         ("#강연", ["강연", "세미나", "토크", "포럼"]),
-        ("#대회", ["대회", "공모전", "경연"]),
+        ("#대회", ["대회", "공모전", "경연", "선발전"]),
         ("#가족", ["가족", "어린이", "키즈"]),
         ("#지역행사", ["주민", "지역", "마을", "시민"]),
     ]
 
-    searchable = " ".join(lines + [title])
+    searchable = " ".join(lines + [title]).lower()
     tags = []
     for tag, words in hashtag_rules:
-        if any(word in searchable for word in words):
+        if any(word.lower() in searchable for word in words):
             tags.append(tag)
 
-    # 행사 성격을 전혀 특정할 수 없으면 기본 태그 하나만 표시합니다.
+    # '축제'만 잡힌 경우에도 제목에 음악/공연 등의 구체적인 성격이 있으면 함께 표시합니다.
     return " ".join(tags[:4]) if tags else "#행사"
 
 def render_event_summary(data, index):
@@ -1036,10 +1075,14 @@ if "added_event_keys" not in st.session_state:
 # =========================================================
 # APP
 # =========================================================
-st.title("📅 행사 포스터 일정 자동 등록")
-st.write(
-    "행사 포스터를 여러 장 올리면 행사 정보를 읽고 "
-    "캘린더 일정으로 정리합니다."
+st.markdown(
+    """
+    <div class="main-title-wrap">
+        <div class="main-title">📅 행사 포스터 일정 자동 등록</div>
+        <div class="main-subtitle">포스터를 올리면 행사 정보를 한눈에 정리하고 캘린더에 담을 수 있어요.</div>
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
 uploaded_files = st.file_uploader(
@@ -1100,6 +1143,10 @@ if st.session_state.events:
 
             if data.get("ocr_error"):
                 st.warning(data["ocr_error"])
+            # 자동 추출이 실패한 경우에만 실제 OCR 결과를 확인할 수 있게 합니다.
+            if data.get("needs_review") and data.get("ocr_text"):
+                with st.expander("🔎 읽어낸 포스터 글자 확인"):
+                    st.code(data.get("ocr_text", ""), language=None)
 
             if data.get("needs_review"):
                 st.warning("⚠️ 자동 추출 결과를 확인해주세요.")
