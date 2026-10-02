@@ -116,14 +116,16 @@ st.markdown(
 def ocr_image(image):
     """OCR.Space를 이용해 포스터의 글자를 읽습니다."""
     try:
+        api_key = st.secrets.get("OCR_API_KEY", "").strip()
+        if not api_key:
+            return "", "OCR API 키가 설정되지 않았습니다. Streamlit Secrets에 OCR_API_KEY를 추가해주세요."
+
         image = image.convert("RGB")
         max_width = 1800
 
         if image.width > max_width:
             ratio = max_width / image.width
-            image = image.resize(
-                (max_width, int(image.height * ratio))
-            )
+            image = image.resize((max_width, int(image.height * ratio)))
 
         image_bytes = io.BytesIO()
         image.save(image_bytes, format="JPEG", quality=90)
@@ -131,11 +133,6 @@ def ocr_image(image):
 
         boundary = "----PosterCalendarBoundary"
         parts = [
-            (
-                f"--{boundary}\r\n"
-                'Content-Disposition: form-data; name="apikey"\r\n\r\n'
-                "helloworld\r\n"
-            ),
             (
                 f"--{boundary}\r\n"
                 'Content-Disposition: form-data; name="language"\r\n\r\n'
@@ -150,6 +147,11 @@ def ocr_image(image):
                 f"--{boundary}\r\n"
                 'Content-Disposition: form-data; name="OCREngine"\r\n\r\n'
                 "2\r\n"
+            ),
+            (
+                f"--{boundary}\r\n"
+                'Content-Disposition: form-data; name="scale"\r\n\r\n'
+                "true\r\n"
             ),
             (
                 f"--{boundary}\r\n"
@@ -171,15 +173,17 @@ def ocr_image(image):
             "Content-Type",
             f"multipart/form-data; boundary={boundary}"
         )
-        request.add_header("User-Agent", "PosterCalendar/2.0")
+        request.add_header("apikey", api_key)
+        request.add_header("User-Agent", "PosterCalendar/2.1")
 
-        with urllib.request.urlopen(request, timeout=30) as response:
-            result = json.loads(
-                response.read().decode("utf-8")
-            )
+        with urllib.request.urlopen(request, timeout=45) as response:
+            result = json.loads(response.read().decode("utf-8"))
 
         if result.get("IsErroredOnProcessing"):
-            return "", "포스터의 글자를 읽지 못했습니다."
+            error_message = result.get("ErrorMessage") or result.get("ErrorDetails")
+            if isinstance(error_message, list):
+                error_message = " / ".join(str(x) for x in error_message)
+            return "", f"포스터 글자 읽기에 실패했습니다: {error_message or 'OCR 처리 오류'}"
 
         parsed_results = result.get("ParsedResults", [])
         if not parsed_results:
@@ -193,15 +197,20 @@ def ocr_image(image):
         final_text = "\n".join(texts).strip()
 
         if not final_text:
-            return "", "읽어낸 글자가 없습니다."
+            return "", "OCR은 완료되었지만 읽어낸 글자가 없습니다."
 
         return final_text, ""
 
-    except Exception:
-        return "", (
-            "포스터 정보를 읽는 데 실패했습니다. "
-            "아래에서 행사 정보를 직접 입력할 수 있습니다."
-        )
+    except urllib.error.HTTPError as e:
+        try:
+            detail = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            detail = ""
+        return "", f"OCR 서버 오류({e.code}): {detail[:300] or e.reason}"
+    except urllib.error.URLError as e:
+        return "", f"OCR 서버에 연결하지 못했습니다: {e.reason}"
+    except Exception as e:
+        return "", f"포스터 정보를 읽는 데 실패했습니다: {str(e)}"
 
 
 # =========================================================
