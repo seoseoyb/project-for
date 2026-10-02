@@ -24,7 +24,22 @@ st.markdown(
     /* 전체 테마: 따뜻한 크림 + 라벤더 포인트 */
     .stApp {
         font-family: "Gowun Dodum", "Malgun Gothic", sans-serif;
-        background: linear-gradient(180deg, #fcf9ff 0%, #fffdf8 55%, #f7fbff 100%);
+        background: linear-gradient(180deg, #f4effc 0%, #fbf8ff 48%, #fffaf3 100%);
+        color: #51485d;
+    }
+
+    /* 화면 안의 일반 글씨까지 모두 동글동글한 폰트 적용 */
+    .stApp, .stApp p, .stApp label, .stApp div, .stApp span,
+    .stApp input, .stApp textarea, .stApp button, .stApp select,
+    .stApp [data-testid="stMarkdownContainer"], .stApp [data-testid="stCaptionContainer"] {
+        font-family: "Gowun Dodum", "Malgun Gothic", sans-serif !important;
+    }
+
+    /* Streamlit 아이콘은 아이콘 폰트를 유지 */
+    .stApp .material-symbols-outlined,
+    .stApp .material-icons,
+    .stApp [class*="material-symbols"] {
+        font-family: "Material Symbols Outlined" !important;
     }
 
     h1, h2, h3 {
@@ -78,12 +93,29 @@ st.markdown(
         box-shadow: 0 10px 22px rgba(113, 91, 155, 0.22);
     }
 
-    /* 결과 카드 */
+    /* 다이어리처럼 보이는 결과 카드 */
     [data-testid="stVerticalBlockBorderWrapper"] {
-        border-radius: 24px !important;
-        border: 1px solid #e7def2 !important;
-        background: rgba(255,255,255,0.88) !important;
-        box-shadow: 0 8px 28px rgba(84, 69, 105, 0.07);
+        position: relative;
+        border-radius: 18px 22px 20px 16px !important;
+        border: 1px solid #e6dced !important;
+        background: #fffdf9 !important;
+        box-shadow: 0 10px 24px rgba(84, 69, 105, 0.09), 0 2px 0 #eadff0;
+        padding-top: 10px !important;
+        overflow: visible !important;
+    }
+
+    /* 노트 윗부분의 작은 테이프 장식 */
+    [data-testid="stVerticalBlockBorderWrapper"]::before {
+        content: "";
+        position: absolute;
+        top: -9px;
+        left: 50%;
+        transform: translateX(-50%) rotate(-1deg);
+        width: 92px;
+        height: 22px;
+        border-radius: 5px;
+        background: rgba(215, 201, 232, 0.78);
+        box-shadow: 0 2px 5px rgba(90,70,110,0.08);
     }
 
     .event-title {
@@ -102,9 +134,10 @@ st.markdown(
     .info-item {
         flex: 1;
         padding: 15px 18px;
-        border-radius: 16px;
-        background: #f7f3fc;
-        border: 1px solid #ebe3f4;
+        border-radius: 12px;
+        background: #faf6ff;
+        border: 1px dashed #d9cce7;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
     }
 
     .info-label {
@@ -135,6 +168,27 @@ st.markdown(
     .keyword-text {
         font-size: 16px;
         line-height: 1.7;
+    }
+
+    /* 다이어리 메모지 느낌의 핵심 정보 */
+    .diary-note {
+        margin: 10px 0 14px 0;
+        padding: 15px 18px;
+        border-radius: 12px;
+        border: 1px dashed #d8c9e3;
+        background: #fffaf4;
+    }
+
+    .diary-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #8a7898;
+        margin-bottom: 4px;
+    }
+
+    .diary-value {
+        font-size: 18px;
+        color: #50465b;
     }
 
     @media (max-width: 700px) {
@@ -277,7 +331,7 @@ def extract_date_candidates(text):
         r"(20\d{2})[.\-/년]\s*(\d{1,2})[.\-/월]\s*(\d{1,2})",
         r"(20\d{2})\s+(\d{1,2})\s+(\d{1,2})",
         r"(\d{1,2})\s*월\s*(\d{1,2})\s*일",
-        r"(\d{1,2})\s*[./-]\s*(\d{1,2})"
+        r"(\d{1,2})\s*[/-]\s*(\d{1,2})"
     ]
 
     found = []
@@ -1045,9 +1099,9 @@ def render_event_summary(data, index):
                 st.markdown("**📅 행사 날짜**"); st.markdown(f"### {date_range}")
             with c2:
                 st.markdown("**⏰ 시간**"); st.markdown(f"### {time_text}")
-            st.markdown(f"**📍 장소**  {location}")
-            st.markdown(f"**🏢 주최·주관**  {organizer}")
-            if deadline: st.markdown(f"**📝 신청 마감**  {pretty(deadline)}")
+            st.markdown(f'<div class="diary-note"><div class="diary-label">📍 장소</div><div class="diary-value">{location}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="diary-note"><div class="diary-label">🏢 주최·주관</div><div class="diary-value">{organizer}</div></div>', unsafe_allow_html=True)
+            if deadline: st.markdown(f'<div class="diary-note"><div class="diary-label">📝 신청 마감</div><div class="diary-value">{pretty(deadline)}</div></div>', unsafe_allow_html=True)
         if data.get("special_info"):
             st.divider(); st.markdown("**✨ 추가 정보**")
             for item in data["special_info"]:
