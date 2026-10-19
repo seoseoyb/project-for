@@ -1,4 +1,3 @@
-
 import streamlit as st
 from PIL import Image
 import urllib.request
@@ -469,6 +468,7 @@ def extract_date_candidates(text):
 
     found = []
     for line_index, line in enumerate(lines):
+        # 라벨만 따로 인식된 OCR 결과는 인접한 한 줄까지만 보조 정보로 사용합니다.
         previous = lines[line_index - 1] if line_index > 0 else ""
         following = lines[line_index + 1] if line_index + 1 < len(lines) else ""
         prev_is_label = len(previous) <= 24 and not any(p.search(previous) for p in patterns) and bool(deadline_re.search(previous) or event_re.search(previous))
@@ -489,6 +489,7 @@ def extract_date_candidates(text):
                     continue
 
                 raw = match.group(0)
+                # 10:30 같은 시각이 10.30 형태로 잘못 읽힌 경우는 제외합니다.
                 if pattern_index == 3 and time_re.search(line):
                     if re.search(r"\d{1,2}\s*[./-]\s*\d{2}", raw):
                         continue
@@ -500,12 +501,14 @@ def extract_date_candidates(text):
         deadline_hits = list(deadline_re.finditer(line))
         event_hits = []
         for event_match in event_re.finditer(line):
+            # '신청 기간/마감 날짜'의 '기간/날짜'를 행사 라벨로 중복 계산하지 않습니다.
             prefix = line[max(0, event_match.start() - 8):event_match.start()]
             if re.search(r"신청|접수|모집|마감", prefix):
                 continue
             event_hits.append(event_match)
-
         for match, date_obj, pattern_index in matches:
+            pos = match.start()
+            # 날짜 기준으로 가장 가까운 행사/마감 라벨을 비교합니다.
             def span_distance(label_match):
                 if label_match.end() <= match.start():
                     return match.start() - label_match.end()
@@ -525,13 +528,16 @@ def extract_date_candidates(text):
                 has_deadline_label = False
                 has_event_label = nearest_event <= 28
             else:
+                # 거리가 같으면 날짜 바로 앞에 있는 라벨을 우선합니다.
                 has_deadline_label = nearest_deadline <= 28 and deadline_before and not event_before
                 has_event_label = nearest_event <= 28 and event_before and not deadline_before
 
+            # '까지'는 바로 붙은 날짜를 마감일로 봅니다. 단, 다른 행사 라벨이 더 가까우면 제외합니다.
             until_hits = list(re.finditer(r"까지", line))
             near_until = min((abs(m.start() - match.end()) for m in until_hits), default=10**6) <= 8
             is_deadline = has_deadline_label or (near_until and nearest_event > 8)
 
+            # 라벨이 다음 줄/이전 줄에 따로 적힌 경우를 보조 처리합니다.
             if not is_deadline and prev_is_label and deadline_re.search(previous):
                 is_deadline = True
                 has_deadline_label = True
@@ -553,6 +559,7 @@ def extract_date_candidates(text):
                 "has_deadline_label": bool(has_deadline_label),
             })
 
+    # 같은 날짜가 반복 추출된 경우 제거하되, 행사일/마감일 분류는 별도로 보존합니다.
     unique = []
     seen = set()
     for item in sorted(found, key=lambda x: x["position"]):
@@ -578,6 +585,7 @@ def extract_deadline(text):
         item for item in extract_date_candidates(text)
         if item["is_deadline"] and item.get("has_deadline_label")
     ]
+    # '신청 기간 10/1~10/20'처럼 기간으로 적힌 경우 마지막 날짜가 마감일입니다.
     return candidates[-1]["date"] if candidates else ""
 
 
@@ -597,6 +605,7 @@ def extract_time_range(text):
     """오전/오후, AM/PM, 시/분, 콜론 표기를 포함해 시작·종료 시간을 찾습니다."""
     text = clean_extracted_lines(text)
 
+    # 예: 오전 10시 ~ 오후 4시 / AM 10:00 ~ PM 05:00
     meridiem_range = re.search(
         r"(?i)(오전|오후|AM|PM)\s*(\d{1,2})(?:\s*[:.]\s*(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)?\s*(?:~|〜|～|-|–|—|부터)\s*"
         r"(오전|오후|AM|PM)?\s*(\d{1,2})(?:\s*[:.]\s*(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)?",
@@ -607,14 +616,17 @@ def extract_time_range(text):
         sm, sh, sc, sk, em, eh, ec, ek = g
         smin = sc or sk or 0
         emin = ec or ek or 0
+        # 종료에 오전/오후가 없으면 시작의 오전/오후를 기본 적용
         em = em or sm
         start = _normalize_clock(sh, smin, sm)
         end = _normalize_clock(eh, emin, em)
         if start and end:
+            # 오전 10시 ~ 4시는 일반적으로 오후 4시로 해석
             if em == sm and end <= start and sm in ("오전", "AM", "am"):
                 end = _normalize_clock(eh, emin, "오후")
             return start, end
 
+    # 예: 10:00~16:00 / 10.00 - 16.00
     colon_range = re.search(
         r"(?<![\d.])([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)\s*(?:~|〜|～|-|–|—|부터)\s*([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)",
         text
@@ -623,6 +635,7 @@ def extract_time_range(text):
         g = colon_range.groups()
         return _normalize_clock(g[0], g[1]), _normalize_clock(g[2], g[3])
 
+    # 예: 10시~16시 / 10시 30분 ~ 16시
     korean_range = re.search(
         r"(?<!\d)([01]?\d|2[0-3])\s*시(?:\s*([0-5]?\d)\s*분)?\s*(?:~|〜|～|-|–|—|부터)\s*([01]?\d|2[0-3])\s*시(?:\s*([0-5]?\d)\s*분)?",
         text
@@ -631,6 +644,7 @@ def extract_time_range(text):
         g = korean_range.groups()
         return _normalize_clock(g[0], g[1] or 0), _normalize_clock(g[2], g[3] or 0)
 
+    # 단일 AM/PM 시간
     single_ampm = re.search(
         r"(?i)(오전|오후|AM|PM)\s*(\d{1,2})(?:\s*[:.]\s*(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)?",
         text
@@ -639,6 +653,7 @@ def extract_time_range(text):
         g = single_ampm.groups()
         return _normalize_clock(g[1], g[2] or g[3] or 0, g[0]), ""
 
+    # 단일 24시간 표기
     single_colon = re.search(r"(?<![\d.])([01]?\d|2[0-3])\s*:\s*([0-5]\d)(?!\d)", text)
     if single_colon:
         return _normalize_clock(single_colon.group(1), single_colon.group(2)), ""
@@ -648,6 +663,7 @@ def extract_time_range(text):
 
 def extract_time(text):
     return extract_time_range(text)[0]
+
 
 # =========================================================
 # URL / LOCATION / ORGANIZER / FEE / TITLE
@@ -667,17 +683,14 @@ def extract_url(text):
 def clean_labeled_value(line, labels):
     value = line.strip()
     for label in labels:
-        value = re.sub(
-            rf"^{re.escape(label)}\s*[:：\-]?\s*",
-            "",
-            value,
-            flags=re.IGNORECASE
-        )
+        value = re.sub(rf"^{re.escape(label)}\s*[:：\-]?\s*", "", value, flags=re.IGNORECASE)
     return value.strip(" -:：")
 
 
 def clean_extracted_lines(text):
-    """포스터의 아이콘/구분선이 숫자나 기호로 잘못 읽힌 경우를 정리합니다."""
+    """포스터의 아이콘/구분선이 숫자나 기호로 잘못 읽힌 경우를 정리합니다.
+    예: '9 장소 1 문화누리' -> '장소: 문화누리'
+    """
     cleaned = []
     label_patterns = [
         (r"^\s*[0-9]+\s*(장소|행사장소|공연장|개최장소|장소안내)\s*[|lI1:：-]?\s*", r"\1: "),
@@ -692,78 +705,42 @@ def clean_extracted_lines(text):
             continue
         for pattern, replacement in label_patterns:
             line = re.sub(pattern, replacement, line, flags=re.I)
-        line = re.sub(
-            r"(장소|행사장소|공연장|개최장소|장소안내)\s*[|lI1](?!\s*\d)\s*",
-            r"\1: ",
-            line,
-            flags=re.I
-        )
-        line = re.sub(
-            r"(주최\s*·?\s*주관|주최|주관|일시|기간|일정|문의|문의처|연락처|참가\s*신청|신청|접수)\s*[|lI1](?!\s*\d)\s*",
-            r"\1: ",
-            line,
-            flags=re.I
-        )
-        line = re.sub(
-            r"^\s*[90]\s+(?=(장소|공연장|주최|주관|일시|문의|신청|접수)\b)",
-            "",
-            line,
-            flags=re.I
-        )
+        # 라벨 뒤에 OCR이 '1' 또는 '|'을 끼워 넣는 경우
+        line = re.sub(r"(장소|행사장소|공연장|개최장소|장소안내)\s*[|lI1](?!\s*\d)\s*", r"\1: ", line, flags=re.I)
+        line = re.sub(r"(주최\s*·?\s*주관|주최|주관|일시|기간|일정|문의|문의처|연락처|참가\s*신청|신청|접수)\s*[|lI1](?!\s*\d)\s*", r"\1: ", line, flags=re.I)
+        # 아이콘이 9/0 같은 숫자로 읽혀 라벨 앞에 남는 경우만 제거
+        line = re.sub(r"^\s*[90]\s+(?=(장소|공연장|주최|주관|일시|문의|신청|접수)\b)", "", line, flags=re.I)
         cleaned.append(line)
     return "\n".join(cleaned)
 
 
 def extract_location(text):
     text = clean_extracted_lines(text)
-    lines = [
-        re.sub(r"\s+", " ", line).strip()
-        for line in text.splitlines()
-        if line.strip()
-    ]
-
+    lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
+    # 라벨이 있는 장소를 가장 우선
     for line in lines:
-        if re.search(
-            r"^(장소|행사장소|공연장|개최장소|장소안내|venue|location)\s*[:：]",
-            line,
-            re.I
-        ):
-            value = clean_labeled_value(
-                line,
-                ["장소", "행사장소", "공연장", "개최장소", "장소안내", "venue", "location"]
-            )
-            if value:
-                return value
+        if re.search(r"^(장소|행사장소|공연장|개최장소|장소안내|venue|location)\s*[:：]", line, re.I):
+            value = clean_labeled_value(line, ["장소", "행사장소", "공연장", "개최장소", "장소안내", "venue", "location"])
+            if value: return value
 
+    # OCR에서 '행사장소' 라벨과 장소명이 서로 다른 줄로 분리되는 경우
+    # 예: 행사장소 / 새마을 공원 운동장
+    location_labels = ("장소", "행사장소", "공연장", "개최장소", "장소안내", "venue", "location")
     for i, line in enumerate(lines):
-        if re.fullmatch(
-            r"(?:장소|행사장소|공연장|개최장소|장소안내|venue|location)",
-            line,
-            re.I
-        ):
+        if re.fullmatch(r"(?:장소|행사장소|공연장|개최장소|장소안내|venue|location)", line, re.I):
             for next_line in lines[i + 1:i + 3]:
-                if next_line and not re.search(
-                    r"^(일시|날짜|시간|참가|참여|주최|주관|문의|신청|접수|마감)",
-                    next_line,
-                    re.I
-                ):
+                if next_line and not re.search(r"^(일시|날짜|시간|참가|참여|주최|주관|문의|신청|접수|마감)", next_line, re.I):
                     return next_line.strip(" :：|-|")
 
+    # '행사장소 새마을 공원 운동장'처럼 한 줄에 붙어 있으나 콜론이 없는 경우
     for line in lines:
-        m = re.search(
-            r"^(?:장소|행사장소|공연장|개최장소|장소안내)\s+(.+)$",
-            line,
-            re.I
-        )
+        m = re.search(r"^(?:장소|행사장소|공연장|개최장소|장소안내)\s+(.+)$", line, re.I)
         if m and m.group(1).strip():
             return m.group(1).strip(" :：|-|")
 
+    # 장소 단어가 문장 뒤에 붙은 경우
     for line in lines:
-        if any(k in line.lower() for k in [
-            "문화회관", "문화관", "아트센터", "예술회관", "공연장",
-            "콘서트홀", "체육관", "대강당", "소극장", "대극장",
-            "센터", "홀", "갤러리", "운동장", "야외무대"
-        ]):
+        if any(k in line.lower() for k in ["문화회관", "문화관", "아트센터", "예술회관", "공연장", "콘서트홀", "체육관", "대강당", "소극장", "대극장", "센터", "홀", "갤러리", "운동장", "야외무대"]):
             if not any(k in line for k in ["주최", "문의", "신청"]):
                 return line
     return ""
@@ -772,51 +749,27 @@ def extract_location(text):
 def extract_organizer(text):
     text = clean_extracted_lines(text)
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-
     for line in lines:
-        if re.search(
-            r"^(주최|주관|주최\s*·\s*주관|organizer)\s*[:：]",
-            line,
-            re.I
-        ):
-            return clean_labeled_value(
-                line,
-                ["주최·주관", "주최 · 주관", "주최", "주관", "organizer"]
-            )
-
+        if re.search(r"^(주최|주관|주최\s*·\s*주관|organizer)\s*[:：]", line, re.I):
+            return clean_labeled_value(line, ["주최·주관", "주최 · 주관", "주최", "주관", "organizer"])
+    # 라벨이 중간에 붙은 경우
     for line in lines:
         if "주최" in line or "주관" in line:
-            value = re.sub(
-                r".*?(주최|주관)\s*[:：]?\s*",
-                "",
-                line,
-                count=1
-            )
-            if value.strip():
-                return value.strip()
+            value = re.sub(r".*?(주최|주관)\s*[:：]?\s*", "", line, count=1)
+            if value.strip(): return value.strip()
     return ""
 
 
 def _extract_labeled_values(text, label_patterns):
     """라벨이 같은 줄/다음 줄에 있는 경우 모두 찾아 값만 반환합니다."""
     text = clean_extracted_lines(text)
-    lines = [
-        re.sub(r"\s+", " ", x).strip(" -–—|:")
-        for x in text.splitlines()
-        if x.strip()
-    ]
+    lines = [re.sub(r"\s+", " ", x).strip(" -–—|:") for x in text.splitlines() if x.strip()]
     values = []
-
     for i, line in enumerate(lines):
         for pat in label_patterns:
-            m = re.search(
-                rf"(?:^|\b){pat}\s*[:：|lI1\-]?\s*(.*)$",
-                line,
-                flags=re.I
-            )
+            m = re.search(rf"(?:^|\b){pat}\s*[:：|lI1\-]?\s*(.*)$", line, flags=re.I)
             if not m:
                 continue
-
             value = m.group(1).strip(" :：|lI1-–—")
             if value and len(value) <= 160:
                 values.append(value)
@@ -825,11 +778,11 @@ def _extract_labeled_values(text, label_patterns):
                 if nxt and len(nxt) <= 160:
                     values.append(nxt)
             break
-
-    out = []
-    for value in values:
-        if value and value not in out:
-            out.append(value)
+    # 중복 제거
+    out=[]
+    for v in values:
+        if v and v not in out:
+            out.append(v)
     return out
 
 
@@ -844,10 +797,7 @@ def extract_special_info(text):
     for label, patterns in groups:
         values = _extract_labeled_values(text, patterns)
         if values:
-            result.append({
-                "label": label,
-                "value": " / ".join(values[:2])
-            })
+            result.append({"label": label, "value": " / ".join(values[:2])})
     return result
 
 
@@ -856,30 +806,21 @@ def extract_participation_info(text):
     groups = [
         ("💰 참가비", [r"참가\s*비", r"참여\s*비", r"입장료", r"참가비용"]),
         ("👥 참가 대상", [r"참가\s*대상", r"참여\s*대상", r"대상"]),
-        ("📝 참여 방법", [
-            r"참여\s*방법", r"참가\s*방법", r"신청\s*방법",
-            r"접수\s*방법", r"신청\s*및\s*접수"
-        ]),
+        ("📝 참여 방법", [r"참여\s*방법", r"참가\s*방법", r"신청\s*방법", r"접수\s*방법", r"신청\s*및\s*접수"]),
     ]
-    result = []
+    result=[]
     for label, patterns in groups:
-        values = _extract_labeled_values(text, patterns)
+        values=_extract_labeled_values(text, patterns)
         if values:
-            result.append({
-                "label": label,
-                "value": " / ".join(values[:2])
-            })
+            result.append({"label":label, "value":" / ".join(values[:2])})
     return result
 
 
 def extract_fee(text):
-    vals = _extract_labeled_values(
-        text,
-        [r"참가\s*비", r"참여\s*비", r"입장료", r"참가비용"]
-    )
+    vals = _extract_labeled_values(text, [r"참가\s*비", r"참여\s*비", r"입장료", r"참가비용"])
     if vals:
         return " / ".join(vals[:2])
-
+    # '무료'만 단독으로 있는 경우도 참가비로 표시
     for line in clean_extracted_lines(text).splitlines():
         if re.fullmatch(r"\s*무료\s*", line):
             return "무료"
@@ -887,130 +828,156 @@ def extract_fee(text):
 
 
 def extract_title(text):
-    """포스터의 제목이 여러 줄로 나뉘어 있어도 하나의 행사명으로 묶어 찾습니다."""
-    raw_lines = [
-        re.sub(r"\s+", " ", line).strip()
-        for line in text.splitlines()
-    ]
+    """행사 포스터에서 행사명만 우선 추출하고 날짜·홍보 문구를 분리합니다."""
+    raw_lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines()]
     lines = [line for line in raw_lines if line]
     if not lines:
         return ""
 
-    excluded_words = [
-        "일시", "기간", "일정", "장소", "문의", "주최", "주관",
-        "주최주관", "신청", "접수", "마감", "등록", "주소",
-        "홈페이지", "http", "www.", "무료", "입장료", "참가비",
-        "문의처", "전화", "연락처"
-    ]
     title_type_words = [
-        "축제", "페스티벌", "콘서트", "공연", "전시", "대회",
-        "행사", "음악회", "마켓", "박람회", "데이", "페어",
-        "쇼", "캠프", "파티", "페스타"
+        "축제", "페스티벌", "콘서트", "공연", "전시", "대회", "행사", "음악회",
+        "마켓", "박람회", "데이", "페어", "쇼", "캠프", "파티", "페스타",
+        "경기", "체험전", "발표회", "음악제", "영화제", "문화제"
     ]
-    generic_only = set(
-        title_type_words + ["festival", "concert", "event", "day"]
-    )
+    excluded_words = [
+        "일시", "기간", "일정", "장소", "문의", "주최", "주관", "신청", "접수",
+        "마감", "등록", "주소", "홈페이지", "http", "www.", "참가비", "입장료",
+        "문의처", "참가 대상", "참여 방법", "참여방법", "신청 방법"
+    ]
+
+    def clean_line(line):
+        line = re.sub(r"\s+", " ", line).strip()
+        # 날짜 범위와 그 뒤의 홍보 문구를 행사명에서 제거합니다.
+        date_patterns = [
+            r"20\d{2}\s*[./년-]\s*\d{1,2}\s*[./월-]\s*\d{1,2}\s*일?",
+            r"(?<!\d)\d{1,2}\s*[./]\s*\d{1,2}\s*(?:일)?\s*(?:\([^)]{1,8}\))?\s*(?:~|～|〜|부터|–|—|-|∼)\s*\d{1,2}\s*[./]\s*\d{1,2}\s*(?:일)?\s*(?:\([^)]{1,8}\))?",
+            r"(?<!\d)\d{1,2}\s*월\s*\d{1,2}\s*일",
+            r"(?<!\d)\d{1,2}\s*[./]\s*\d{1,2}\s*(?:일)?\s*\([^)]{1,8}\)",
+        ]
+        for pattern in date_patterns:
+            match = re.search(pattern, line)
+            if match:
+                line = line[:match.start()].strip(" -–—|•·,，:：")
+                break
+
+        # 행사 유형 단어 뒤의 슬로건·설명 문구를 잘라냅니다.
+        positions = []
+        for word in title_type_words:
+            pos = line.find(word)
+            if pos >= 0:
+                positions.append((pos, len(word)))
+        if positions:
+            pos, length = min(positions, key=lambda item: item[0])
+            line = line[:pos + length].strip(" -–—|•·,，:：")
+
+        # 제목 앞에 붙은 장식 기호를 정리합니다.
+        line = re.sub(r"^[\s★☆▶▷●○◆◇■□※#【】\[\]()]+", "", line)
+        return re.sub(r"\s+", " ", line).strip(" -–—|•·,，:：")
 
     def is_metadata(line):
         lower = line.lower()
-        if any(word in lower for word in excluded_words):
-            return True
-        if re.search(r"20\d{2}[.\-/년]\s*\d{1,2}[.\-/월]\s*\d{1,2}", line):
-            return True
-        if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일", line):
-            return True
-        if re.search(r"\d{1,2}\s*[:.]\s*\d{2}", line):
-            return True
-        if re.search(r"\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?", line) and len(line) < 35:
-            return True
-        return False
+        return (
+            any(word in lower for word in excluded_words)
+            or bool(re.search(r"https?://|www\.", line, re.I))
+            or bool(re.fullmatch(r"[0-9\s./:~()년월일화수목금토일-]+", line))
+        )
 
-    def clean(line):
-        return re.sub(r"\s+", " ", line).strip(" -–—|•·")
-
-    top_lines = lines[:30]
+    cleaned = [clean_line(line) for line in lines[:50]]
     candidates = []
 
-    for i, line in enumerate(top_lines):
-        line = clean(line)
-        if not line or is_metadata(line) or len(line) > 80:
+    # 한 줄 제목 후보
+    for i, line in enumerate(cleaned):
+        if not line or is_metadata(line) or not 3 <= len(line) <= 65:
             continue
-
-        lower = line.lower()
         score = 0
-        if i < 6:
-            score += 4
-        elif i < 12:
-            score += 2
-        if len(line) >= 4:
+        if i < 10:
+            score += 5
+        elif i < 20:
             score += 2
         if re.search(r"[가-힣]", line):
             score += 3
-        if re.search(r"[A-Za-z]", line):
-            score += 1
-        if any(k in lower for k in title_type_words):
-            score += 5
-        if lower.strip(" .") in generic_only:
-            score -= 12
-        if re.fullmatch(r"20\d{2}", line):
+        if any(word in line for word in title_type_words):
+            score += 12
+        if 8 <= len(line) <= 38:
+            score += 4
+        if len(line) > 45:
             score -= 5
         candidates.append((score, i, line))
 
-    for i in range(min(len(top_lines), 18)):
+    # 제목이 여러 줄로 나뉜 경우 행사 유형이 있는 줄 앞의 수식어를 합칩니다.
+    # 예: '재미있고 풍성한 가을 맞이' + '단풍 축제 10.2(수)~10.6(일) ...'
+    #  -> '재미있고 풍성한 가을 맞이 단풍 축제'
+    for i in range(min(len(lines), 30)):
         for size in (2, 3):
-            if i + size > len(top_lines):
+            if i + size > len(lines):
+                continue
+            raw_block = lines[i:i + size]
+            block = [clean_line(part) for part in raw_block]
+            if any(not part for part in block):
                 continue
 
-            block = [clean(x) for x in top_lines[i:i + size]]
-            if any(not x or is_metadata(x) for x in block):
+            # 날짜·홍보 문구가 제거된 후 행사 유형이 남는 줄을 찾습니다.
+            type_positions = [
+                j for j, part in enumerate(block)
+                if any(word in part for word in title_type_words)
+            ]
+            if not type_positions:
                 continue
-            if any(len(x) > 60 for x in block):
+            type_line_idx = type_positions[0]
+
+            # 행사 유형이 있는 줄까지만 앞의 짧은 제목 줄을 붙입니다.
+            prefix_parts = []
+            for j in range(type_line_idx + 1):
+                part = block[j]
+                if is_metadata(part):
+                    prefix_parts = []
+                    break
+                # 날짜만 있거나 설명형 문장인 앞줄은 제목에 붙이지 않습니다.
+                if j < type_line_idx and (
+                    len(part) < 2
+                    or re.search(r"[.!?。]$", part)
+                    or len(part) > 35
+                ):
+                    prefix_parts = []
+                    break
+                prefix_parts.append(part)
+
+            if not prefix_parts:
+                continue
+            combined = re.sub(r"\s+", " ", " ".join(prefix_parts)).strip()
+            combined = clean_line(combined)
+            if not 5 <= len(combined) <= 55:
                 continue
 
-            combined = re.sub(r"\s+", " ", " ".join(block)).strip()
-            if len(combined) < 4 or len(combined) > 100:
-                continue
-
-            score = 0
-            if i < 5:
+            score = 24
+            if i < 10:
+                score += 5
+            if 10 <= len(combined) <= 38:
                 score += 6
-            elif i < 10:
-                score += 3
-            if any(re.search(r"[가-힣]", x) for x in block):
-                score += 4
-            if any(re.search(r"[A-Za-z]", x) for x in block):
-                score += 1
-
-            type_count = sum(
-                1 for x in block
-                if any(k in x.lower() for k in title_type_words)
-            )
-            if type_count:
-                score += 6
-
-            score += 5
-            if any(
-                re.search(r"20\d{2}[.\-/년]\s*\d{1,2}", x)
-                for x in block[1:]
-            ):
-                score -= 8
+            if len(combined) > 42:
+                score -= 5
+            # 여러 줄로 나뉜 수식어가 포함된 완성형 제목을 단독 단어보다 우선합니다.
+            if len(prefix_parts) >= 2:
+                score += 5
             candidates.append((score, i, combined))
 
     if not candidates:
-        return lines[0]
+        fallback = clean_line(lines[0])
+        return fallback or lines[0][:50]
 
-    candidates.sort(key=lambda x: (x[0], len(x[2])), reverse=True)
-    best = candidates[0][2]
+    # 행사 유형이 포함된 짧고 완성된 제목을 우선 선택합니다.
+    candidates.sort(
+        key=lambda item: (
+            item[0],
+            any(word in item[2] for word in title_type_words),
+            len(item[2]) <= 42,
+            -item[1],
+        ),
+        reverse=True,
+    )
+    best = clean_line(candidates[0][2])
+    return best or clean_line(lines[0]) or lines[0][:50]
 
-    if best.lower().strip(" .") in generic_only:
-        meaningful = [
-            c for c in candidates
-            if c[2].lower().strip(" .") not in generic_only
-        ]
-        if meaningful:
-            best = meaningful[0][2]
-
-    return best
 
 # =========================================================
 # EVENT DATA / REVIEW
@@ -1021,66 +988,41 @@ def split_title_for_display(title):
     if not title:
         return "", ""
 
+    # OCR에서 자주 남는 구분자를 기준으로 부제를 분리합니다.
     for sep in (" | ", " — ", " – ", " - ", " : ", " · "):
         if sep in title:
             main, sub = title.split(sep, 1)
             if len(main.strip()) >= 3 and len(sub.strip()) >= 2:
                 return main.strip(), sub.strip()
-
     m = re.match(r"^(.*?)(?:\(([^()]{2,30})\))$", title)
     if m and len(m.group(1).strip()) >= 3:
         return m.group(1).strip(), m.group(2).strip()
     return title, ""
-
 
 def make_event_data(text, source_name="", image_bytes=None):
     date_candidates = extract_event_dates(text)
     deadline = extract_deadline(text)
     start_time, end_time = extract_time_range(text)
     special_info = extract_special_info(text)
-
     data = {
-        "source_name": source_name,
-        "image_bytes": image_bytes,
-        "title": extract_title(text),
-        "title_subtitle": split_title_for_display(extract_title(text))[1],
-        "date_candidates": date_candidates,
+        "source_name": source_name, "image_bytes": image_bytes,
+        "title": extract_title(text), "title_subtitle": split_title_for_display(extract_title(text))[1], "date_candidates": date_candidates,
         "selected_date": date_candidates[0] if date_candidates else "",
         "date": date_candidates[0] if date_candidates else "",
-        "deadline": deadline,
-        "start_time": start_time,
-        "end_date": date_candidates[-1] if len(date_candidates) > 1 else (
-            date_candidates[0] if date_candidates else ""
-        ),
-        "end_time": end_time,
-        "location": extract_location(text),
-        "organizer": extract_organizer(text),
-        "fee": extract_fee(text),
-        "url": extract_url(text),
-        "special_info": special_info,
-        "participation_info": extract_participation_info(text),
-        "description": "",
-        "ocr_text": text,
-        "added": False,
-        "confirmed": False,
+        "deadline": deadline, "start_time": start_time, "end_date": date_candidates[-1] if len(date_candidates) > 1 else (date_candidates[0] if date_candidates else ""),
+        "end_time": end_time, "location": extract_location(text), "organizer": extract_organizer(text),
+        "fee": extract_fee(text), "url": extract_url(text), "special_info": special_info, "participation_info": extract_participation_info(text),
+        "description": "", "ocr_text": text, "added": False, "confirmed": False,
     }
-
-    reasons = []
-    if not data["title"]:
-        reasons.append("행사명을 찾지 못했습니다.")
-    if not date_candidates:
-        reasons.append("행사 날짜를 찾지 못했습니다.")
-    if len(date_candidates) > 1:
-        reasons.append("날짜가 여러 개 발견되었습니다. 행사 날짜와 종료 날짜를 확인해주세요.")
+    reasons=[]
+    if not data["title"]: reasons.append("행사명을 찾지 못했습니다.")
+    if not date_candidates: reasons.append("행사 날짜를 찾지 못했습니다.")
+    if len(date_candidates)>1: reasons.append("날짜가 여러 개 발견되었습니다. 행사 날짜와 종료 날짜를 확인해주세요.")
     if data["deadline"] and data["date"] and data["deadline"] > data["date"]:
         reasons.append("신청 마감일이 행사 날짜보다 늦게 인식되었습니다. 마감일을 확인해주세요.")
-    if not data["location"]:
-        reasons.append("장소를 확실하게 찾지 못했습니다.")
-    if not data["start_time"]:
-        reasons.append("시작 시간을 찾지 못했습니다.")
-
-    data["review_reasons"] = reasons
-    data["needs_review"] = bool(reasons)
+    if not data["location"]: reasons.append("장소를 확실하게 찾지 못했습니다.")
+    if not data["start_time"]: reasons.append("시작 시간을 찾지 못했습니다.")
+    data["review_reasons"]=reasons; data["needs_review"]=bool(reasons)
     return data
 
 
@@ -1151,6 +1093,7 @@ def make_google_calendar_url(data):
         if not start_time:
             date_obj = datetime.strptime(date, "%Y-%m-%d")
             next_day = date_obj + timedelta(days=1)
+
             params = {
                 "action": "TEMPLATE",
                 "text": title,
@@ -1246,6 +1189,7 @@ def make_ics(data):
         else:
             date_obj = datetime.strptime(date, "%Y-%m-%d")
             next_day = date_obj + timedelta(days=1)
+
             lines = [
                 "BEGIN:VCALENDAR",
                 "VERSION:2.0",
@@ -1260,23 +1204,22 @@ def make_ics(data):
             ]
 
         return "\r\n".join(lines)
+
     except Exception:
         return None
+
 
 # =========================================================
 # DISPLAY HELPERS
 # =========================================================
 def make_keyword_summary(text, data=None):
-    """포스터 내용이 있으면 짧게 요약하고, 내용이 없으면 행사 성격을 표시합니다."""
+    """포스터 내용이 있으면 짧게 요약하고, 내용이 없으면 행사 성격을 해시태그로 표시합니다."""
     data = data or {}
     if not text:
         return "#행사"
 
     text = clean_extracted_lines(text)
-    lines = [
-        re.sub(r"\s+", " ", x).strip(" -–—|•·")
-        for x in text.splitlines() if x.strip()
-    ]
+    lines = [re.sub(r"\s+", " ", x).strip(" -–—|•·") for x in text.splitlines() if x.strip()]
     title = data.get("title", "").strip()
     location = data.get("location", "").strip()
     organizer = data.get("organizer", "").strip()
@@ -1299,6 +1242,7 @@ def make_keyword_summary(text, data=None):
             return True
         return False
 
+    # 포스터에 실제 설명/프로그램 문장이 있는지 찾습니다.
     description_candidates = []
     content_words = [
         "공연", "콘서트", "체험", "전시", "강연", "토크", "게임", "대회", "경기",
@@ -1321,10 +1265,8 @@ def make_keyword_summary(text, data=None):
             continue
         if re.fullmatch(r"[\d\s|lI._:/~()\-–—]+", line):
             continue
-        if any(word in line for word in content_words) or re.search(
-            r"[.!?]$|합니다$|됩니다$|하세요$|보세요$|함께$|만나",
-            line
-        ):
+        # 문장형 설명 또는 프로그램/활동을 나타내는 구체적인 문구만 내용으로 사용합니다.
+        if any(word in line for word in content_words) or re.search(r"[.!?]$|합니다$|됩니다$|하세요$|보세요$|함께$|만나", line):
             description_candidates.append(line)
 
     if description_candidates:
@@ -1336,6 +1278,7 @@ def make_keyword_summary(text, data=None):
                 break
         return " ".join(selected)
 
+    # 설명 문장이 없더라도 포스터의 단어 조합으로 행사 성격을 자연스럽게 표현합니다.
     searchable = " ".join(lines + [title]).lower()
     has_music = any(w in searchable for w in ["음악", "노래", "가수", "밴드", "콘서트", "뮤직", "버스킹"])
     has_festival = any(w in searchable for w in ["축제", "페스티벌", "페스타"])
@@ -1361,103 +1304,61 @@ def make_keyword_summary(text, data=None):
     elif has_festival:
         phrases.append("축제")
 
-    if has_exhibition:
-        phrases.append("전시")
-    if has_experience:
-        phrases.append("체험")
-    if has_sports:
-        phrases.append("스포츠")
-    if has_market:
-        phrases.append("마켓")
-    if has_lecture:
-        phrases.append("강연")
-    if has_contest:
-        phrases.append("대회")
+    if has_exhibition: phrases.append("전시")
+    if has_experience: phrases.append("체험")
+    if has_sports: phrases.append("스포츠")
+    if has_market: phrases.append("마켓")
+    if has_lecture: phrases.append("강연")
+    if has_contest: phrases.append("대회")
 
+    # 구체적인 키워드가 없을 때만 일반적인 행사명을 표시합니다.
     return " · ".join(dict.fromkeys(phrases)) if phrases else "행사 프로그램 및 활동 정보 확인 필요"
 
-
 def render_event_summary(data, index):
-    title = data.get("title", "").strip() or "행사명 확인 필요"
-    date = data.get("date", "").strip() or "날짜 확인 필요"
-    end_date = data.get("end_date", "").strip() or date
-    start_time = data.get("start_time", "").strip()
-    end_time = data.get("end_time", "").strip()
-    location = data.get("location", "").strip() or "장소 확인 필요"
-    organizer = data.get("organizer", "").strip() or "주최·주관 정보 확인 필요"
-    deadline = data.get("deadline", "").strip()
-
-    def pretty(value):
-        try:
-            return datetime.strptime(value, "%Y-%m-%d").strftime("%Y.%m.%d")
-        except Exception:
-            return value
-
-    date_range = pretty(date) if date == end_date else f"{pretty(date)} ~ {pretty(end_date)}"
-    time_text = f"{start_time} ~ {end_time}" if start_time and end_time else (
-        start_time or "시간 확인 필요"
-    )
-
+    title=data.get("title", "").strip() or "행사명 확인 필요"
+    date=data.get("date", "").strip() or "날짜 확인 필요"
+    end_date=data.get("end_date", "").strip() or date
+    start_time=data.get("start_time", "").strip(); end_time=data.get("end_time", "").strip()
+    location=data.get("location", "").strip() or "장소 확인 필요"
+    organizer=data.get("organizer", "").strip() or "주최·주관 정보 확인 필요"
+    deadline=data.get("deadline", "").strip()
+    def pretty(v):
+        try: return datetime.strptime(v, "%Y-%m-%d").strftime("%Y.%m.%d")
+        except Exception: return v
+    date_range=pretty(date) if date==end_date else f"{pretty(date)} ~ {pretty(end_date)}"
+    time_text=f"{start_time} ~ {end_time}" if start_time and end_time else (start_time or "시간 확인 필요")
     with st.container(border=True):
-        image_col, info_col = st.columns([1, 1.7])
-
+        image_col, info_col=st.columns([1, 1.7])
         with image_col:
             if data.get("image_bytes"):
-                st.image(
-                    io.BytesIO(data["image_bytes"]),
-                    caption=data.get("source_name", "포스터"),
-                    width="stretch"
-                )
-
+                st.image(io.BytesIO(data["image_bytes"]), caption=data.get("source_name", "포스터"), width="stretch")
         with info_col:
-            st.caption(f"EVENT {index + 1}")
+            st.caption(f"EVENT {index+1}")
             title_main, title_sub = split_title_for_display(title)
             st.markdown(
                 f'<div class="event-display-title">{title_main}</div>'
-                + (
-                    f'<div class="event-display-subtitle">{title_sub}</div>'
-                    if title_sub else ""
-                ),
+                + (f'<div class="event-display-subtitle">{title_sub}</div>' if title_sub else ""),
                 unsafe_allow_html=True
             )
-
-            c1, c2 = st.columns(2)
+            c1,c2=st.columns(2)
             with c1:
-                st.markdown("**📅 행사 날짜**")
-                st.markdown(f"### {date_range}")
+                st.markdown("**📅 행사 날짜**"); st.markdown(f"### {date_range}")
             with c2:
-                st.markdown("**⏰ 시간**")
-                st.markdown(f"### {time_text}")
-
-            st.markdown(
-                f'<div class="diary-note"><div class="diary-label">📍 장소</div><div class="diary-value">{location}</div></div>',
-                unsafe_allow_html=True
-            )
-            st.markdown(
-                f'<div class="diary-note"><div class="diary-label">🏢 주최·주관</div><div class="diary-value">{organizer}</div></div>',
-                unsafe_allow_html=True
-            )
-
-            if deadline:
-                st.markdown(
-                    f'<div class="diary-note"><div class="diary-label">📝 신청 마감</div><div class="diary-value">{pretty(deadline)}</div></div>',
-                    unsafe_allow_html=True
-                )
-
+                st.markdown("**⏰ 시간**"); st.markdown(f"### {time_text}")
+            st.markdown(f'<div class="diary-note"><div class="diary-label">📍 장소</div><div class="diary-value">{location}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="diary-note"><div class="diary-label">🏢 주최·주관</div><div class="diary-value">{organizer}</div></div>', unsafe_allow_html=True)
+            if deadline: st.markdown(f'<div class="diary-note"><div class="diary-label">📝 신청 마감</div><div class="diary-value">{pretty(deadline)}</div></div>', unsafe_allow_html=True)
         if data.get("special_info"):
-            st.divider()
-            st.markdown("**✨ 추가 정보**")
+            st.divider(); st.markdown("**✨ 추가 정보**")
             for item in data["special_info"]:
                 st.write(f"{item['label']}  {item['value']}")
 
         if data.get("participation_info"):
-            st.divider()
-            st.markdown("**🙋 참가 정보**")
+            st.divider(); st.markdown("**🙋 참가 정보**")
             for item in data["participation_info"]:
                 st.write(f"{item['label']}  {item['value']}")
 
-        st.divider()
-        st.markdown("**💡 핵심 내용**")
+        st.divider(); st.markdown("**💡 핵심 내용**")
         st.write(make_keyword_summary(data.get("ocr_text", ""), data))
 
 
@@ -1509,9 +1410,7 @@ if uploaded_files:
 
             if text:
                 event = make_event_data(
-                    text,
-                    uploaded_file.name,
-                    uploaded_file.getvalue()
+                    text, uploaded_file.name, uploaded_file.getvalue()
                 )
                 new_events.append(event)
             else:
@@ -1523,7 +1422,9 @@ if uploaded_files:
             progress.progress((index + 1) / len(uploaded_files))
 
         st.session_state.events = new_events
-        st.success(f"{len(new_events)}개의 포스터 처리가 완료되었습니다.")
+        st.success(
+            f"{len(new_events)}개의 포스터 처리가 완료되었습니다."
+        )
 
 
 # =========================================================
@@ -1537,11 +1438,12 @@ if st.session_state.events:
         source_name = data.get("source_name", f"행사 {index + 1}")
 
         with st.container():
+            # 한눈에 보는 행사 요약
             render_event_summary(data, index)
 
             if data.get("ocr_error"):
                 st.warning(data["ocr_error"])
-
+            # 자동 추출이 실패한 경우에만 실제 OCR 결과를 확인할 수 있게 합니다.
             if data.get("needs_review") and data.get("ocr_text"):
                 with st.expander("🔎 읽어낸 포스터 글자 확인"):
                     st.code(data.get("ocr_text", ""), language=None)
@@ -1551,26 +1453,17 @@ if st.session_state.events:
                 for reason in data.get("review_reasons", []):
                     st.write(f"• {reason}")
 
-            # 여러 날짜가 발견되면 캘린더에 넣을 날짜를 먼저 선택
+            # 여러 날짜가 발견되면 캘린더에 넣을 날짜를 항상 먼저 선택
             candidates = data.get("date_candidates", [])
             if len(candidates) > 1:
-                labels = [
-                    f"{date} (후보 {i + 1})"
-                    for i, date in enumerate(candidates)
-                ]
-                current = data.get("selected_date", candidates[0])
-                idx = candidates.index(current) if current in candidates else 0
-                selected = st.selectbox(
-                    "📅 캘린더에 추가할 행사 날짜",
-                    range(len(candidates)),
-                    index=idx,
-                    format_func=lambda x: labels[x],
-                    key=f"date_select_top_{index}"
-                )
-                data["selected_date"] = candidates[selected]
-                data["date"] = candidates[selected]
+                labels = [f"{d} (후보 {i+1})" for i,d in enumerate(candidates)]
+                current=data.get("selected_date", candidates[0])
+                idx=candidates.index(current) if current in candidates else 0
+                selected=st.selectbox("📅 캘린더에 추가할 행사 날짜", range(len(candidates)), index=idx, format_func=lambda x: labels[x], key=f"date_select_top_{index}")
+                data["selected_date"]=candidates[selected]; data["date"]=candidates[selected]
                 st.info("여러 날짜가 발견되었습니다. 행사 날짜를 선택한 뒤 캘린더에 추가하세요.")
 
+            # 사용자가 수정할 수 있는 영역은 접어서 제공
             with st.expander("✏️ 정보 수정 / 자세히 보기"):
                 st.caption(
                     f"원본 포스터: {source_name} · "
@@ -1585,13 +1478,11 @@ if st.session_state.events:
 
                 if len(candidates) <= 1:
                     data["date"] = st.text_input(
-                        "행사 날짜",
-                        value=data.get("date", ""),
-                        placeholder="2026-10-12",
-                        key=f"date_{index}"
+                        "행사 날짜", value=data.get("date", ""), placeholder="2026-10-12", key=f"date_{index}"
                     )
 
                 col1, col2 = st.columns(2)
+
                 with col1:
                     data["end_date"] = st.text_input(
                         "종료 날짜",
@@ -1599,6 +1490,7 @@ if st.session_state.events:
                         placeholder="2026-10-12",
                         key=f"end_date_{index}"
                     )
+
                 with col2:
                     data["deadline"] = st.text_input(
                         "신청 마감일",
@@ -1608,6 +1500,7 @@ if st.session_state.events:
                     )
 
                 col1, col2 = st.columns(2)
+
                 with col1:
                     data["start_time"] = st.text_input(
                         "시작 시간",
@@ -1615,6 +1508,7 @@ if st.session_state.events:
                         placeholder="19:00",
                         key=f"start_{index}"
                     )
+
                 with col2:
                     data["end_time"] = st.text_input(
                         "종료 시간",
@@ -1628,16 +1522,19 @@ if st.session_state.events:
                     value=data.get("location", ""),
                     key=f"location_{index}"
                 )
+
                 data["organizer"] = st.text_input(
                     "주최 / 주관",
                     value=data.get("organizer", ""),
                     key=f"organizer_{index}"
                 )
+
                 data["fee"] = st.text_input(
                     "참가비",
                     value=data.get("fee", ""),
                     key=f"fee_{index}"
                 )
+
                 data["url"] = st.text_input(
                     "신청 URL",
                     value=data.get("url", ""),
@@ -1668,6 +1565,7 @@ if st.session_state.events:
                 data["confirmed"] = True
 
             st.session_state.events[index] = data
+
             duplicate = is_duplicate(data)
 
             if duplicate:
@@ -1685,10 +1583,13 @@ if st.session_state.events:
             ics = make_ics(data)
             blocked = data.get("needs_review") and not data.get("confirmed")
 
+            # 날짜가 있으면 모든 행사에 캘린더 영역을 보여주고,
+            # 자동 추출이 애매한 경우에는 확인 전까지 버튼만 비활성화합니다.
             if blocked:
                 st.info("⚠️ 위의 정보 확인을 완료하면 캘린더에 추가할 수 있습니다.")
 
             col1, col2 = st.columns(2)
+
             with col1:
                 if calendar_url:
                     st.link_button(
@@ -1709,20 +1610,19 @@ if st.session_state.events:
                         key=f"ics_{index}",
                         disabled=blocked
                     )
-                    st.caption(
-                        "Google Calendar 외 다른 캘린더에서도 사용할 수 있는 일정 파일입니다."
-                    )
+                    st.caption("Google Calendar 외 다른 캘린더에서도 사용할 수 있는 일정 파일입니다.")
 
             if st.button(
                 "✅ 캘린더에 추가 완료로 표시",
                 key=f"added_{index}",
                 use_container_width=True
             ):
-                st.session_state.added_event_keys.add(event_key(data))
+                st.session_state.added_event_keys.add(
+                    event_key(data)
+                )
                 data["added"] = True
                 st.session_state.events[index] = data
                 st.rerun()
-
 
 # =========================================================
 # ADDED EVENTS
@@ -1743,3 +1643,4 @@ st.divider()
 st.caption(
     "Poster Calendar · 여러 포스터 · 날짜 선택 · 마감일 구분 · 정보 확인 · 중복 방지"
 )
+
