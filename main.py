@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 # =========================================================
 st.set_page_config(
     page_title="행사 포스터 일정 자동 등록",
-    page_icon="📅",
+    page_icon="🐈‍⬛",
     layout="wide"
 )
 
@@ -24,8 +24,8 @@ st.markdown(
     /* 전체 테마: 따뜻한 크림 + 라벤더 포인트 */
     .stApp {
         font-family: "Jua", "Gowun Dodum", "Malgun Gothic", sans-serif;
-        background: linear-gradient(180deg, #eee7fb 0%, #f8f4ff 44%, #fff9f1 100%);
-        color: #51485d;
+        background: linear-gradient(180deg, #f7f7f8 0%, #ffffff 44%, #f4f4f5 100%);
+        color: #202024;
     }
 
     /* 앱 전체를 동글동글한 글씨로 통일 */
@@ -58,13 +58,13 @@ st.markdown(
         font-family: "Jua", "Gowun Dodum", sans-serif;
         font-size: clamp(32px, 4vw, 48px);
         line-height: 1.25;
-        color: #4b4266;
+        color: #17171b;
         margin: 0;
     }
 
     .main-title-wrap .main-subtitle {
         margin-top: 10px;
-        color: #81778f;
+        color: #66666f;
         font-family: "Gowun Dodum", "Jua", sans-serif;
         font-size: 16px;
         font-weight: 400;
@@ -72,11 +72,11 @@ st.markdown(
 
     /* 업로드 영역 */
     [data-testid="stFileUploader"] {
-        background: rgba(255,253,249,.92);
-        border: 2px dashed #cfc0dd;
+        background: rgba(255,255,255,.98);
+        border: 2px dashed #bdbdc5;
         border-radius: 18px 24px 20px 14px;
         padding: 9px;
-        box-shadow: 3px 4px 0 rgba(218,203,226,.42), 0 10px 22px rgba(84,69,105,.07);
+        box-shadow: 3px 4px 0 rgba(20,20,24,.05), 0 10px 22px rgba(20,20,24,.06);
     }
 
     /* 메인 정보 찾기 버튼 */
@@ -87,13 +87,13 @@ st.markdown(
         font-size: 18px !important;
         letter-spacing: -0.01em;
         border: 0 !important;
-        box-shadow: 0 7px 18px rgba(113, 91, 155, 0.16);
+        box-shadow: 0 7px 18px rgba(20,20,24,0.16);
         transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
 
     div.stButton > button[kind="primary"]:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 22px rgba(113, 91, 155, 0.22);
+        box-shadow: 0 10px 22px rgba(20,20,24,0.22);
     }
 
     /* ───────── 다이어리 노트형 행사 카드 ───────── */
@@ -102,13 +102,13 @@ st.markdown(
         margin: 28px 0 34px 0 !important;
         padding: 28px 28px 24px 42px !important;
         border-radius: 10px 18px 14px 12px !important;
-        border: 1px solid #e4d8ea !important;
-        border-left: 3px solid #d7c3df !important;
-        background-color: #fffdf8 !important;
+        border: 1px solid #e5e5e9 !important;
+        border-left: 3px solid #242429 !important;
+        background-color: #ffffff !important;
         background-image:
-            linear-gradient(to right, transparent 0, transparent 31px, rgba(218,191,211,.30) 32px, transparent 33px),
-            repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(196,185,211,.18) 32px, transparent 33px);
-        box-shadow: 4px 7px 0 rgba(214,197,224,.45), 0 14px 30px rgba(84,69,105,.10);
+            linear-gradient(to right, transparent 0, transparent 31px, rgba(30,30,35,.06) 32px, transparent 33px),
+            repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(30,30,35,.035) 32px, transparent 33px);
+        box-shadow: 4px 7px 0 rgba(20,20,24,.05), 0 14px 30px rgba(20,20,24,.08);
         overflow: visible !important;
     }
 
@@ -123,8 +123,8 @@ st.markdown(
         width: 108px;
         height: 28px;
         border-radius: 5px;
-        background: rgba(211,194,232,.82);
-        box-shadow: 0 2px 5px rgba(90,70,110,.10);
+        background: rgba(28,28,33,.92);
+        box-shadow: 0 2px 5px rgba(20,20,24,.12);
     }
 
     /* 노트의 왼쪽 바인더 구멍 느낌 */
@@ -136,8 +136,8 @@ st.markdown(
         width: 9px;
         height: 9px;
         border-radius: 50%;
-        background: #d6c4dd;
-        box-shadow: 0 39px #d6c4dd, 0 78px #d6c4dd, 0 117px #d6c4dd, 0 156px #d6c4dd, 0 195px #d6c4dd;
+        background: #f1a8bd;
+        box-shadow: 0 39px #f1a8bd, 0 78px #f1a8bd, 0 117px #f1a8bd, 0 156px #f1a8bd, 0 195px #f1a8bd;
     }
 
     .event-title {
@@ -146,7 +146,7 @@ st.markdown(
         font-weight: 400;
         line-height: 1.25;
         margin-bottom: 22px;
-        color: #51445f;
+        color: #1c1c21;
     }
 
     .event-main-info {
@@ -159,8 +159,8 @@ st.markdown(
         flex: 1;
         padding: 15px 18px;
         border-radius: 12px;
-        background: #faf6ff;
-        border: 1px dashed #d9cce7;
+        background: #f7f7f8;
+        border: 1px dashed #d7d7dd;
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
     }
 
@@ -185,7 +185,7 @@ st.markdown(
     }
 
     .event-description {
-        border-top: 1px solid #eee7f4;
+        border-top: 1px solid #e8e8ec;
         padding-top: 16px;
     }
 
@@ -200,9 +200,9 @@ st.markdown(
         margin: 11px 0 14px 0;
         padding: 14px 18px 15px 18px;
         border-radius: 8px 13px 10px 7px;
-        border: 1px dashed #d6c6df;
-        background: rgba(255,250,244,.88);
-        box-shadow: 2px 3px 0 rgba(219,203,227,.34);
+        border: 1px dashed #d7d7dd;
+        background: rgba(255,255,255,.96);
+        box-shadow: 2px 3px 0 rgba(20,20,24,.05);
     }
 
     .diary-note::after {
@@ -213,20 +213,20 @@ st.markdown(
         width: 12px;
         height: 12px;
         border-radius: 50%;
-        border: 2px solid #d9c9df;
-        background: #fffdf8;
+        border: 2px solid #f1a8bd;
+        background: #ffffff;
     }
 
     .diary-label {
         font-size: 13px;
         font-weight: 700;
-        color: #8a7898;
+        color: #686871;
         margin-bottom: 4px;
     }
 
     .diary-value {
         font-size: 18px;
-        color: #50465b;
+        color: #29292f;
     }
 
     /* 확장/수정 버튼 안의 아이콘이 글씨와 겹치지 않도록 아이콘 폰트를 강제로 분리 */
@@ -284,7 +284,7 @@ st.markdown(
         font-size: clamp(28px, 3.2vw, 42px);
         line-height: 1.2;
         font-weight: 400;
-        color: #4b4266;
+        color: #17171b;
         margin: 4px 0 2px 0;
         letter-spacing: -0.02em;
     }
@@ -293,9 +293,119 @@ st.markdown(
         font-size: 15px;
         line-height: 1.45;
         font-weight: 400;
-        color: #8b7f96;
+        color: #777780;
         margin: 0 0 18px 1px;
     }
+
+    /* 검은 고양이 테마: 깔끔한 흑백 + 말랑한 핑크 젤리 포인트 */
+    .stApp {
+        background: linear-gradient(180deg, #f6f6f7 0%, #ffffff 34%, #f7f7f8 100%);
+        color: #202024;
+    }
+    .main-title-wrap {
+        position: relative;
+        padding-top: 30px;
+        padding-bottom: 20px;
+    }
+    .main-title-wrap::before {
+        content: "🐈‍⬛";
+        display: block;
+        font-size: 43px;
+        line-height: 1.1;
+        margin-bottom: 8px;
+        filter: drop-shadow(0 4px 0 rgba(20,20,24,.06));
+    }
+    .main-title-wrap::after {
+        content: "肉球  •  pink beans  •  肉球";
+        display: block;
+        margin-top: 12px;
+        color: #e58da8;
+        font-family: "Gowun Dodum", sans-serif;
+        font-size: 12px;
+        letter-spacing: .14em;
+    }
+    .main-title-wrap .main-title { color: #17171b; }
+    .main-title-wrap .main-subtitle { color: #686871; }
+    [data-testid="stFileUploader"] {
+        position: relative;
+        background: #fff;
+        border: 2px dashed #c8c8cf;
+        border-radius: 22px;
+        box-shadow: 0 8px 24px rgba(20,20,24,.045);
+    }
+    [data-testid="stFileUploader"]::after {
+        content: "🐾";
+        position: absolute;
+        right: 15px;
+        bottom: 10px;
+        font-size: 23px;
+        opacity: .82;
+        pointer-events: none;
+    }
+    div.stButton > button[kind="primary"] {
+        background: #242429 !important;
+        color: #fff !important;
+        border: 1px solid #242429 !important;
+        border-radius: 17px !important;
+        box-shadow: 0 5px 0 #dedee3, 0 9px 18px rgba(20,20,24,.10) !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background: #3a3a42 !important;
+        border-color: #3a3a42 !important;
+        box-shadow: 0 3px 0 #dedee3, 0 8px 18px rgba(20,20,24,.13) !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border-color: #e1e1e5 !important;
+        border-left-color: #242429 !important;
+        background-color: #fff !important;
+        background-image: none !important;
+        border-radius: 20px !important;
+        box-shadow: 0 8px 24px rgba(20,20,24,.055) !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::before {
+        content: "🐾";
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 43px;
+        height: 28px;
+        background: #f9dce5;
+        color: #28282d;
+        border-radius: 999px;
+        font-size: 16px;
+        box-shadow: none;
+        transform: translateX(-50%) rotate(-5deg);
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::after {
+        background: #f1a8bd;
+        box-shadow: 0 39px #f1a8bd, 0 78px #f1a8bd, 0 117px #f1a8bd, 0 156px #f1a8bd, 0 195px #f1a8bd;
+    }
+    .event-title, .event-display-title { color: #17171b !important; }
+    .info-item {
+        background: #f8f8f9;
+        border: 1px solid #e2e2e6;
+        border-radius: 16px;
+    }
+    .diary-note {
+        border: 1px solid #e4e4e8;
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 3px 0 rgba(20,20,24,.035);
+    }
+    .diary-note::after {
+        background: #f7c8d7;
+        border-color: #f1a8bd;
+    }
+    .diary-label { color: #777780; }
+    .diary-value { color: #29292f; }
+    .stApp [data-testid="stExpander"] summary {
+        background: #f8f8f9;
+        border: 1px solid #e5e5e9;
+        border-radius: 15px !important;
+    }
+    .stApp [data-testid="stExpander"] summary:hover { border-color: #f1a8bd; }
+    .stApp [data-testid="stFileUploaderDropzone"] { background: transparent; }
+    .stApp [data-testid="stProgressBar"] > div > div { background-color: #f1a8bd; }
 
     @media (max-width: 700px) {
         .event-title { font-size: 25px; }
@@ -311,7 +421,7 @@ st.markdown(
 # OCR
 # =========================================================
 def ocr_image(image):
-    """OCR.Space를 이용해 포스터의 글자를 읽습니다."""
+    """OCR.Space로 한국어와 영어를 각각 읽고 결과를 합칩니다."""
     try:
         api_key = st.secrets.get("OCR_API_KEY", "").strip()
         if not api_key:
@@ -319,7 +429,6 @@ def ocr_image(image):
 
         image = image.convert("RGB")
         max_width = 1800
-
         if image.width > max_width:
             ratio = max_width / image.width
             image = image.resize((max_width, int(image.height * ratio)))
@@ -328,75 +437,45 @@ def ocr_image(image):
         image.save(image_bytes, format="JPEG", quality=90)
         image_data = image_bytes.getvalue()
 
-        boundary = "----PosterCalendarBoundary"
-        parts = [
-            (
-                f"--{boundary}\r\n"
-                'Content-Disposition: form-data; name="language"\r\n\r\n'
-                "kor\r\n"
-            ),
-            (
-                f"--{boundary}\r\n"
-                'Content-Disposition: form-data; name="isOverlayRequired"\r\n\r\n'
-                "false\r\n"
-            ),
-            (
-                f"--{boundary}\r\n"
-                'Content-Disposition: form-data; name="OCREngine"\r\n\r\n'
-                "3\r\n"
-            ),
-            (
-                f"--{boundary}\r\n"
-                'Content-Disposition: form-data; name="scale"\r\n\r\n'
-                "true\r\n"
-            ),
-            (
-                f"--{boundary}\r\n"
-                'Content-Disposition: form-data; name="file"; filename="poster.jpg"\r\n'
-                "Content-Type: image/jpeg\r\n\r\n"
-            )
-        ]
+        def request_ocr(language):
+            boundary = "----PosterCalendarBoundary"
+            parts = [
+                (f"--{boundary}\r\nContent-Disposition: form-data; name=\"language\"\r\n\r\n{language}\r\n"),
+                (f"--{boundary}\r\nContent-Disposition: form-data; name=\"isOverlayRequired\"\r\n\r\nfalse\r\n"),
+                (f"--{boundary}\r\nContent-Disposition: form-data; name=\"OCREngine\"\r\n\r\n3\r\n"),
+                (f"--{boundary}\r\nContent-Disposition: form-data; name=\"scale\"\r\n\r\ntrue\r\n"),
+                (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"poster.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n"),
+            ]
+            request_body = "".join(parts).encode("utf-8") + image_data + f"\r\n--{boundary}--\r\n".encode("utf-8")
+            request = urllib.request.Request("https://api.ocr.space/parse/image", data=request_body, method="POST")
+            request.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
+            request.add_header("apikey", api_key)
+            request.add_header("User-Agent", "PosterCalendar/2.2")
+            with urllib.request.urlopen(request, timeout=45) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            if result.get("IsErroredOnProcessing"):
+                message = result.get("ErrorMessage") or result.get("ErrorDetails") or "OCR 처리 오류"
+                if isinstance(message, list):
+                    message = " / ".join(str(x) for x in message)
+                return "", str(message)
+            parsed = result.get("ParsedResults", [])
+            return "\n".join(item.get("ParsedText", "") for item in parsed if item.get("ParsedText")).strip(), ""
 
-        body = "".join(parts).encode("utf-8")
-        ending = f"\r\n--{boundary}--\r\n".encode("utf-8")
-        request_body = body + image_data + ending
+        # 한국어 결과를 기본으로 사용하고 영어 인식 결과를 보완합니다.
+        korean_text, korean_error = request_ocr("kor")
+        english_text, english_error = request_ocr("eng")
+        if not korean_text and not english_text:
+            return "", f"포스터 글자 읽기에 실패했습니다: {korean_error or english_error or '읽어낸 글자가 없습니다.'}"
 
-        request = urllib.request.Request(
-            "https://api.ocr.space/parse/image",
-            data=request_body,
-            method="POST"
-        )
-        request.add_header(
-            "Content-Type",
-            f"multipart/form-data; boundary={boundary}"
-        )
-        request.add_header("apikey", api_key)
-        request.add_header("User-Agent", "PosterCalendar/2.1")
-
-        with urllib.request.urlopen(request, timeout=45) as response:
-            result = json.loads(response.read().decode("utf-8"))
-
-        if result.get("IsErroredOnProcessing"):
-            error_message = result.get("ErrorMessage") or result.get("ErrorDetails")
-            if isinstance(error_message, list):
-                error_message = " / ".join(str(x) for x in error_message)
-            return "", f"포스터 글자 읽기에 실패했습니다: {error_message or 'OCR 처리 오류'}"
-
-        parsed_results = result.get("ParsedResults", [])
-        if not parsed_results:
-            return "", "이미지에서 글자를 찾지 못했습니다."
-
-        texts = [
-            item.get("ParsedText", "")
-            for item in parsed_results
-            if item.get("ParsedText")
-        ]
-        final_text = "\n".join(texts).strip()
-
-        if not final_text:
-            return "", "OCR은 완료되었지만 읽어낸 글자가 없습니다."
-
-        return final_text, ""
+        combined_lines = []
+        seen = set()
+        for line in (korean_text + "\n" + english_text).splitlines():
+            line = re.sub(r"\s+", " ", line).strip()
+            key = line.casefold()
+            if line and key not in seen:
+                combined_lines.append(line)
+                seen.add(key)
+        return "\n".join(combined_lines), ""
 
     except urllib.error.HTTPError as e:
         try:
@@ -740,7 +819,7 @@ def extract_location(text):
 
     # 장소 단어가 문장 뒤에 붙은 경우
     for line in lines:
-        if any(k in line.lower() for k in ["문화회관", "문화관", "아트센터", "예술회관", "공연장", "콘서트홀", "체육관", "대강당", "소극장", "대극장", "센터", "홀", "갤러리", "운동장", "야외무대"]):
+        if any(k in line.lower() for k in ["문화회관", "문화관", "아트센터", "예술회관", "공연장", "콘서트홀", "체육관", "대강당", "소극장", "대극장", "센터", "홀", "갤러리", "운동장", "야외무대", "venue", "hall", "auditorium", "stadium", "park", "theater", "theatre", "arena", "center", "centre", "gallery"]):
             if not any(k in line for k in ["주최", "문의", "신청"]):
                 return line
     return ""
@@ -750,12 +829,12 @@ def extract_organizer(text):
     text = clean_extracted_lines(text)
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     for line in lines:
-        if re.search(r"^(주최|주관|주최\s*·\s*주관|organizer)\s*[:：]", line, re.I):
-            return clean_labeled_value(line, ["주최·주관", "주최 · 주관", "주최", "주관", "organizer"])
+        if re.search(r"^(주최|주관|주최\s*·\s*주관|organizer|hosted\s*by|presented\s*by)\s*[:：]?", line, re.I):
+            return clean_labeled_value(line, ["주최·주관", "주최 · 주관", "주최", "주관", "organizer", "hosted by", "presented by"])
     # 라벨이 중간에 붙은 경우
     for line in lines:
-        if "주최" in line or "주관" in line:
-            value = re.sub(r".*?(주최|주관)\s*[:：]?\s*", "", line, count=1)
+        if "주최" in line or "주관" in line or re.search(r"organizer|hosted by|presented by", line, re.I):
+            value = re.sub(r".*?(주최|주관|organizer|hosted\s*by|presented\s*by)\s*[:：]?\s*", "", line, count=1, flags=re.I)
             if value.strip(): return value.strip()
     return ""
 
@@ -790,11 +869,17 @@ def extract_special_info(text):
     """초청 가수/출연진 등 행사 특유의 추가 정보를 추출합니다."""
     result = []
     groups = [
-        ("🎤 초청 가수", [r"초청\s*가수", r"초청가수"]),
-        ("🎤 출연진", [r"출연진", r"출연\s*아티스트", r"게스트"]),
-        ("🎬 주요 프로그램", [r"주요\s*프로그램", r"프로그램", r"공연\s*내용"]),
+        ("🎤 초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
+        ("🏢 주최·주관", [r"주최\s*·?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
+        ("🔞 나이 제한", [r"나이\s*제한", r"연령\s*제한", r"관람\s*연령", r"입장\s*연령", r"age(?:\s*limit)?", r"ages?"]),
+        ("⚠️ 주의 사항", [r"주의\s*사항", r"유의\s*사항", r"안내\s*사항", r"입장\s*안내", r"주의", r"please\s*note", r"important\s*notes?", r"notice", r"warnings?", r"no\s+\w+", r"prohibited"]),
     ]
     for label, patterns in groups:
+        values = _extract_labeled_values(text, patterns)
+        # 항목이 포스터에 없으면 '정보 확인 필요' 대신 '-'로 표시합니다.
+        result.append({"label": label, "value": " / ".join(values[:3]) if values else "-"})
+    # 프로그램 정보는 실제로 적혀 있을 때만 별도 표시합니다.
+    for label, patterns in [("🎬 주요 프로그램", [r"주요\s*프로그램", r"프로그램", r"공연\s*내용", r"programs?"])]:
         values = _extract_labeled_values(text, patterns)
         if values:
             result.append({"label": label, "value": " / ".join(values[:2])})
@@ -837,12 +922,14 @@ def extract_title(text):
     title_type_words = [
         "축제", "페스티벌", "콘서트", "공연", "전시", "대회", "행사", "음악회",
         "마켓", "박람회", "데이", "페어", "쇼", "캠프", "파티", "페스타",
-        "경기", "체험전", "발표회", "음악제", "영화제", "문화제"
+        "경기", "체험전", "발표회", "음악제", "영화제", "문화제",
+        "festival", "concert", "event", "day", "fest", "fair", "exhibition", "show", "market", "conference"
     ]
     excluded_words = [
         "일시", "기간", "일정", "장소", "문의", "주최", "주관", "신청", "접수",
         "마감", "등록", "주소", "홈페이지", "http", "www.", "참가비", "입장료",
-        "문의처", "참가 대상", "참여 방법", "참여방법", "신청 방법"
+        "문의처", "참가 대상", "참여 방법", "참여방법", "신청 방법",
+        "venue", "location", "organizer", "hosted by", "presented by", "date", "time", "admission", "age limit", "lineup", "line-up", "notice", "please note"
     ]
 
     def clean_line(line):
@@ -863,7 +950,7 @@ def extract_title(text):
         # 행사 유형 단어 뒤의 슬로건·설명 문구를 잘라냅니다.
         positions = []
         for word in title_type_words:
-            pos = line.find(word)
+            pos = line.lower().find(word.lower())
             if pos >= 0:
                 positions.append((pos, len(word)))
         if positions:
@@ -1315,50 +1402,66 @@ def make_keyword_summary(text, data=None):
     return " · ".join(dict.fromkeys(phrases)) if phrases else "행사 프로그램 및 활동 정보 확인 필요"
 
 def render_event_summary(data, index):
-    title=data.get("title", "").strip() or "행사명 확인 필요"
-    date=data.get("date", "").strip() or "날짜 확인 필요"
-    end_date=data.get("end_date", "").strip() or date
-    start_time=data.get("start_time", "").strip(); end_time=data.get("end_time", "").strip()
-    location=data.get("location", "").strip() or "장소 확인 필요"
-    organizer=data.get("organizer", "").strip() or "주최·주관 정보 확인 필요"
-    deadline=data.get("deadline", "").strip()
-    def pretty(v):
-        try: return datetime.strptime(v, "%Y-%m-%d").strftime("%Y.%m.%d")
-        except Exception: return v
-    date_range=pretty(date) if date==end_date else f"{pretty(date)} ~ {pretty(end_date)}"
-    time_text=f"{start_time} ~ {end_time}" if start_time and end_time else (start_time or "시간 확인 필요")
+    """핵심 카드에는 행사명·날짜·시간·장소만, 선택 정보는 아래에 표시합니다."""
+    title = data.get("title", "").strip() or "-"
+    date = data.get("date", "").strip() or "-"
+    end_date = data.get("end_date", "").strip() or date
+    start_time = data.get("start_time", "").strip()
+    end_time = data.get("end_time", "").strip()
+    location = data.get("location", "").strip() or "-"
+
+    def pretty(value):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").strftime("%Y.%m.%d")
+        except Exception:
+            return value or "-"
+
+    date_range = "-" if date == "-" else (pretty(date) if end_date in ("", "-") or date == end_date else f"{pretty(date)} ~ {pretty(end_date)}")
+    time_text = f"{start_time} ~ {end_time}" if start_time and end_time else (start_time or end_time or "-")
+
     with st.container(border=True):
-        image_col, info_col=st.columns([1, 1.7])
+        image_col, info_col = st.columns([1, 1.7])
         with image_col:
             if data.get("image_bytes"):
                 st.image(io.BytesIO(data["image_bytes"]), caption=data.get("source_name", "포스터"), width="stretch")
         with info_col:
-            st.caption(f"EVENT {index+1}")
+            st.caption(f"EVENT {index + 1}")
             title_main, title_sub = split_title_for_display(title)
             st.markdown(
                 f'<div class="event-display-title">{title_main}</div>'
                 + (f'<div class="event-display-subtitle">{title_sub}</div>' if title_sub else ""),
                 unsafe_allow_html=True
             )
-            c1,c2=st.columns(2)
+            c1, c2 = st.columns(2)
             with c1:
-                st.markdown("**📅 행사 날짜**"); st.markdown(f"### {date_range}")
+                st.markdown("**📅 행사 날짜**")
+                st.markdown(f"### {date_range}")
             with c2:
-                st.markdown("**⏰ 시간**"); st.markdown(f"### {time_text}")
+                st.markdown("**⏰ 시간**")
+                st.markdown(f"### {time_text}")
             st.markdown(f'<div class="diary-note"><div class="diary-label">📍 장소</div><div class="diary-value">{location}</div></div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="diary-note"><div class="diary-label">🏢 주최·주관</div><div class="diary-value">{organizer}</div></div>', unsafe_allow_html=True)
-            if deadline: st.markdown(f'<div class="diary-note"><div class="diary-label">📝 신청 마감</div><div class="diary-value">{pretty(deadline)}</div></div>', unsafe_allow_html=True)
-        if data.get("special_info"):
-            st.divider(); st.markdown("**✨ 추가 정보**")
-            for item in data["special_info"]:
-                st.write(f"{item['label']}  {item['value']}")
+
+        st.divider()
+        st.markdown("**✨ 추가 정보**")
+        special_info = data.get("special_info", [])
+        if not special_info:
+            special_info = [
+                {"label": "🎤 초청 가수 라인업", "value": "-"},
+                {"label": "🏢 주최·주관", "value": "-"},
+                {"label": "🔞 나이 제한", "value": "-"},
+                {"label": "⚠️ 주의 사항", "value": "-"},
+            ]
+        for item in special_info:
+            st.write(f"**{item['label']}**  {item['value'] or '-'}")
 
         if data.get("participation_info"):
-            st.divider(); st.markdown("**🙋 참가 정보**")
+            st.divider()
+            st.markdown("**🙋 참가 정보**")
             for item in data["participation_info"]:
-                st.write(f"{item['label']}  {item['value']}")
+                st.write(f"{item['label']}  {item['value'] or '-'}")
 
-        st.divider(); st.markdown("**💡 핵심 내용**")
+        st.divider()
+        st.markdown("**💡 핵심 내용**")
         st.write(make_keyword_summary(data.get("ocr_text", ""), data))
 
 
