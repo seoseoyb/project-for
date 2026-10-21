@@ -638,6 +638,32 @@ def extract_date_candidates(text):
                 "has_deadline_label": bool(has_deadline_label),
             })
 
+    # "2020년 5월 20-22일"처럼 월/연도가 시작 날짜에만 있는 범위 보완
+    for line_index, line in enumerate(lines):
+        patterns_range = [
+            re.compile(r"(?<!\d)(20\d{2})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*(?:일)?\s*[~～〜–—-]\s*(\d{1,2})\s*일"),
+            re.compile(r"(?<!\d)(\d{1,2})\s*월\s*(\d{1,2})\s*(?:일)?\s*[~～〜–—-]\s*(\d{1,2})\s*일"),
+        ]
+        for pi, rp in enumerate(patterns_range):
+            rm = rp.search(line)
+            if not rm:
+                continue
+            try:
+                if pi == 0:
+                    yy, mm, d1, d2 = map(int, rm.groups())
+                else:
+                    mm, d1, d2 = map(int, rm.groups())
+                    ym = re.search(r"20\d{2}", text)
+                    yy = int(ym.group()) if ym else datetime.now().year
+                for day, offset in ((d1, 0), (d2, 100)):
+                    dt = datetime(yy, mm, day)
+                    found.append({"date": dt.strftime("%Y-%m-%d"), "context": line,
+                                  "is_deadline": False, "position": line_index * 10000 + rm.start() + offset,
+                                  "line_index": line_index, "has_event_label": True, "has_deadline_label": False})
+            except (ValueError, TypeError):
+                pass
+            break
+
     # 같은 날짜가 반복 추출된 경우 제거하되, 행사일/마감일 분류는 별도로 보존합니다.
     unique = []
     seen = set()
@@ -869,7 +895,7 @@ def extract_special_info(text):
     """초청 가수/출연진 등 행사 특유의 추가 정보를 추출합니다."""
     result = []
     groups = [
-        ("🐾 초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
+        ("🎤 초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"출연진", r"출연\s*가수", r"아티스트", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
         ("🐾 주최·주관", [r"주최\s*·?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
         ("🐾 나이 제한", [r"나이\s*제한", r"연령\s*제한", r"관람\s*연령", r"입장\s*연령", r"age(?:\s*limit)?", r"ages?"]),
         ("🐾 주의 사항", [r"주의\s*사항", r"유의\s*사항", r"안내\s*사항", r"입장\s*안내", r"주의", r"please\s*note", r"important\s*notes?", r"notice", r"warnings?", r"no\s+\w+", r"prohibited"]),
@@ -1051,6 +1077,18 @@ def extract_title(text):
     if not candidates:
         fallback = clean_line(lines[0])
         return fallback or lines[0][:50]
+
+    # 상단 제목이 여러 줄로 나뉘는 포스터의 제목 후보 보강
+    top_parts = []
+    for raw in lines[:6]:
+        candidate = clean_line(raw)
+        if candidate and not is_metadata(candidate) and 3 <= len(candidate) <= 30:
+            if not re.search(r"20\d{2}년?\s*\d{1,2}월|오후|오전|OPEN|서울|광진구|캠퍼스", candidate, re.I):
+                top_parts.append(candidate)
+    if top_parts:
+        combined_top = " ".join(top_parts[:2]).strip()
+        if 4 <= len(combined_top) <= 45:
+            candidates.append((28, 0, combined_top))
 
     # 행사 유형이 포함된 짧고 완성된 제목을 우선 선택합니다.
     candidates.sort(
@@ -1503,8 +1541,6 @@ def render_event_summary(data, index):
             for item in data["participation_info"]:
                 st.write(f"{item['label']}  {item['value'] or '-'}")
         st.divider()
-        st.markdown("**💡 핵심 내용**")
-        st.write(make_keyword_summary(data.get("ocr_text", ""), data))
 
 
 # SESSION STATE
