@@ -819,7 +819,7 @@ def extract_location(text):
 
     # 장소 단어가 문장 뒤에 붙은 경우
     for line in lines:
-        if any(k in line.lower() for k in ["문화회관", "문화관", "아트센터", "예술회관", "공연장", "콘서트홀", "체육관", "대강당", "소극장", "대극장", "센터", "홀", "갤러리", "운동장", "야외무대", "venue", "hall", "auditorium", "stadium", "park", "theater", "theatre", "arena", "center", "centre", "gallery"]):
+        if any(k in line.lower() for k in ["문화회관", "문화관", "아트센터", "예술회관", "공연장", "콘서트홀", "체육관", "대강당", "소극장", "대극장", "센터", "홀", "갤러리", "운동장", "야외무대", "공원", "공원 일원", "엑스포", "venue", "hall", "auditorium", "stadium", "park", "theater", "theatre", "arena", "center", "centre", "gallery"]):
             if not any(k in line for k in ["주최", "문의", "신청"]):
                 return line
     return ""
@@ -869,10 +869,10 @@ def extract_special_info(text):
     """초청 가수/출연진 등 행사 특유의 추가 정보를 추출합니다."""
     result = []
     groups = [
-        ("🎤 초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
-        ("🏢 주최·주관", [r"주최\s*·?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
-        ("🔞 나이 제한", [r"나이\s*제한", r"연령\s*제한", r"관람\s*연령", r"입장\s*연령", r"age(?:\s*limit)?", r"ages?"]),
-        ("⚠️ 주의 사항", [r"주의\s*사항", r"유의\s*사항", r"안내\s*사항", r"입장\s*안내", r"주의", r"please\s*note", r"important\s*notes?", r"notice", r"warnings?", r"no\s+\w+", r"prohibited"]),
+        ("🐾 초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
+        ("🐾 주최·주관", [r"주최\s*·?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
+        ("🐾 나이 제한", [r"나이\s*제한", r"연령\s*제한", r"관람\s*연령", r"입장\s*연령", r"age(?:\s*limit)?", r"ages?"]),
+        ("🐾 주의 사항", [r"주의\s*사항", r"유의\s*사항", r"안내\s*사항", r"입장\s*안내", r"주의", r"please\s*note", r"important\s*notes?", r"notice", r"warnings?", r"no\s+\w+", r"prohibited"]),
     ]
     for label, patterns in groups:
         values = _extract_labeled_values(text, patterns)
@@ -1063,7 +1063,13 @@ def extract_title(text):
         reverse=True,
     )
     best = clean_line(candidates[0][2])
-    return best or clean_line(lines[0]) or lines[0][:50]
+    best = best or clean_line(lines[0]) or lines[0][:50]
+    # 포스터 상단에 행사 연도가 별도 줄로 있을 때 제목에 포함
+    year = re.search(r"(?<!\\d)(20\\d{2})(?!\\d)", text)
+    if year and not re.search(r"\\b20\\d{2}\\b", best):
+        if any(word in best.lower() for word in title_type_words):
+            best = f"{year.group(1)} {best}"
+    return best
 
 
 # =========================================================
@@ -1088,8 +1094,42 @@ def split_title_for_display(title):
 
 def make_event_data(text, source_name="", image_bytes=None):
     date_candidates = extract_event_dates(text)
+    # 포스터 상단에 연도가 따로 적히는 경우(예: 2026 / 10.17(토) ▶ 18(일)) 보정
+    year_match = re.search(r"\\b(20\\d{2})\\b", text)
+    poster_year = year_match.group(1) if year_match else ""
+    if poster_year:
+        date_candidates = [
+            re.sub(r"^\\d{4}", poster_year, d) if re.match(r"^\\d{4}-", d) else d
+            for d in date_candidates
+        ]
+    # 같은 줄에 '10.17(토) ▶ 18(일)'처럼 종료 월/연도가 생략된 날짜 범위 보완
+    if poster_year:
+        range_match = re.search(r"(?<!\\d)(\\d{1,2})\\s*[./]\\s*(\\d{1,2})\\s*(?:일)?\\s*(?:\\([^)]{1,8}\\))?\\s*(?:▶|>|~|～|〜|부터|–|—|-)\\s*(?:(\\d{1,2})\\s*[./]\\s*)?(\\d{1,2})\\s*(?:일)?", text)
+        if range_match:
+            sm, sd, em, ed = range_match.groups()
+            sm, sd, em, ed = int(sm), int(sd), int(em or sm), int(ed)
+            try:
+                start_d = datetime(int(poster_year), sm, sd).strftime("%Y-%m-%d")
+                end_d = datetime(int(poster_year), em, ed).strftime("%Y-%m-%d")
+                if start_d not in date_candidates:
+                    date_candidates.insert(0, start_d)
+                if end_d not in date_candidates:
+                    date_candidates.append(end_d)
+            except ValueError:
+                pass
+    # 중복 제거 및 시간 범위/단일 오픈 시간 인식
+    date_candidates = list(dict.fromkeys(date_candidates))
     deadline = extract_deadline(text)
     start_time, end_time = extract_time_range(text)
+    if not start_time:
+        open_match = re.search(r"(?i)(?:오픈\\s*시간|오픈|개장\\s*시간|운영\\s*시작|open(?:ing)?\\s*time)\\s*[:：]?\\s*((?:오전|오후)?\\s*\\d{1,2}(?:\\s*[:.]\\s*\\d{2}|\\s*시(?:\\s*\\d{1,2}\\s*분)?)?(?:\\s*(?:AM|PM))?)", text)
+        if open_match:
+            raw_time = open_match.group(1).strip()
+            start_time = extract_time_range(raw_time)[0]
+            if not start_time:
+                tm = re.search(r"(?i)(오전|오후|AM|PM)?\\s*(\\d{1,2})(?:\\s*[:.]\\s*(\\d{2})|\\s*시(?:\\s*(\\d{1,2})\\s*분)?)?", raw_time)
+                if tm:
+                    start_time = _normalize_clock(tm.group(2), tm.group(3) or tm.group(4) or 0, tm.group(1) or "")
     special_info = extract_special_info(text)
     data = {
         "source_name": source_name, "image_bytes": image_bytes,
@@ -1432,24 +1472,24 @@ def render_event_summary(data, index):
                 + (f'<div class="event-display-subtitle">{title_sub}</div>' if title_sub else ""),
                 unsafe_allow_html=True
             )
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown("**📅 행사 날짜**")
-                st.markdown(f"### {date_range}")
-            with c2:
-                st.markdown("**⏰ 시간**")
-                st.markdown(f"### {time_text}")
+            st.markdown("**📅 행사 날짜**")
+            st.markdown(f"### {date_range}")
+            st.markdown("**⏰ 시간**")
+            st.markdown(f"### {time_text}")
             st.markdown(f'<div class="diary-note"><div class="diary-label">📍 장소</div><div class="diary-value">{location}</div></div>', unsafe_allow_html=True)
 
         st.divider()
-        st.markdown("**✨ 추가 정보**")
+        st.markdown(
+            '<div style="font-size:1.55rem;font-weight:850;margin:0.25rem 0 0.8rem 0;">🐾 추가 정보</div>',
+            unsafe_allow_html=True
+        )
         special_info = data.get("special_info", [])
         if not special_info:
             special_info = [
-                {"label": "🎤 초청 가수 라인업", "value": "-"},
-                {"label": "🏢 주최·주관", "value": "-"},
-                {"label": "🔞 나이 제한", "value": "-"},
-                {"label": "⚠️ 주의 사항", "value": "-"},
+                {"label": "🐾 초청 가수 라인업", "value": "-"},
+                {"label": "🐾 주최·주관", "value": "-"},
+                {"label": "🐾 나이 제한", "value": "-"},
+                {"label": "🐾 주의 사항", "value": "-"},
             ]
         for item in special_info:
             st.write(f"**{item['label']}**  {item['value'] or '-'}")
