@@ -1095,16 +1095,16 @@ def split_title_for_display(title):
 def make_event_data(text, source_name="", image_bytes=None):
     date_candidates = extract_event_dates(text)
     # 포스터 상단에 연도가 따로 적히는 경우(예: 2026 / 10.17(토) ▶ 18(일)) 보정
-    year_match = re.search(r"\\b(20\\d{2})\\b", text)
+    year_match = re.search(r"\b(20\d{2})\b", text)
     poster_year = year_match.group(1) if year_match else ""
     if poster_year:
         date_candidates = [
-            re.sub(r"^\\d{4}", poster_year, d) if re.match(r"^\\d{4}-", d) else d
+            re.sub(r"^\d{4}", poster_year, d) if re.match(r"^\d{4}-", d) else d
             for d in date_candidates
         ]
     # 같은 줄에 '10.17(토) ▶ 18(일)'처럼 종료 월/연도가 생략된 날짜 범위 보완
     if poster_year:
-        range_match = re.search(r"(?<!\\d)(\\d{1,2})\\s*[./]\\s*(\\d{1,2})\\s*(?:일)?\\s*(?:\\([^)]{1,8}\\))?\\s*(?:▶|>|~|～|〜|부터|–|—|-)\\s*(?:(\\d{1,2})\\s*[./]\\s*)?(\\d{1,2})\\s*(?:일)?", text)
+        range_match = re.search(r"(?<!\d)(\d{1,2})\s*[./]\s*(\d{1,2})\s*(?:일)?\s*(?:\([^)]{1,8}\))?\s*(?:▶|>|~|～|〜|부터|–|—|-)\s*(?:(\d{1,2})\s*[./]\s*)?(\d{1,2})\s*(?:일)?", text)
         if range_match:
             sm, sd, em, ed = range_match.groups()
             sm, sd, em, ed = int(sm), int(sd), int(em or sm), int(ed)
@@ -1122,18 +1122,21 @@ def make_event_data(text, source_name="", image_bytes=None):
     deadline = extract_deadline(text)
     start_time, end_time = extract_time_range(text)
     if not start_time:
-        open_match = re.search(r"(?i)(?:오픈\\s*시간|오픈|개장\\s*시간|운영\\s*시작|open(?:ing)?\\s*time)\\s*[:：]?\\s*((?:오전|오후)?\\s*\\d{1,2}(?:\\s*[:.]\\s*\\d{2}|\\s*시(?:\\s*\\d{1,2}\\s*분)?)?(?:\\s*(?:AM|PM))?)", text)
+        open_match = re.search(r"(?i)(?:오픈\s*시간|오픈|개장\s*시간|운영\s*시작|open(?:ing)?\s*time)\s*[:：]?\s*((?:오전|오후)?\s*\d{1,2}(?:\s*[:.]\s*\d{2}|\s*시(?:\s*\d{1,2}\s*분)?)?(?:\s*(?:AM|PM))?)", text)
         if open_match:
             raw_time = open_match.group(1).strip()
             start_time = extract_time_range(raw_time)[0]
             if not start_time:
-                tm = re.search(r"(?i)(오전|오후|AM|PM)?\\s*(\\d{1,2})(?:\\s*[:.]\\s*(\\d{2})|\\s*시(?:\\s*(\\d{1,2})\\s*분)?)?", raw_time)
+                tm = re.search(r"(?i)(오전|오후|AM|PM)?\s*(\d{1,2})(?:\s*[:.]\s*(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)?", raw_time)
                 if tm:
                     start_time = _normalize_clock(tm.group(2), tm.group(3) or tm.group(4) or 0, tm.group(1) or "")
     special_info = extract_special_info(text)
+    extracted_title = extract_title(text)
+    if poster_year and extracted_title and poster_year not in extracted_title:
+        extracted_title = f"{poster_year} {extracted_title}"
     data = {
         "source_name": source_name, "image_bytes": image_bytes,
-        "title": extract_title(text), "title_subtitle": split_title_for_display(extract_title(text))[1], "date_candidates": date_candidates,
+        "title": extracted_title, "title_subtitle": split_title_for_display(extracted_title)[1], "date_candidates": date_candidates,
         "selected_date": date_candidates[0] if date_candidates else "",
         "date": date_candidates[0] if date_candidates else "",
         "deadline": deadline, "start_time": start_time, "end_date": date_candidates[-1] if len(date_candidates) > 1 else (date_candidates[0] if date_candidates else ""),
@@ -1442,7 +1445,7 @@ def make_keyword_summary(text, data=None):
     return " · ".join(dict.fromkeys(phrases)) if phrases else "행사 프로그램 및 활동 정보 확인 필요"
 
 def render_event_summary(data, index):
-    """핵심 카드에는 행사명·날짜·시간·장소만, 선택 정보는 아래에 표시합니다."""
+    """세로형 핵심 정보 카드와 키워드별 이모지 추가 정보를 표시합니다."""
     title = data.get("title", "").strip() or "-"
     date = data.get("date", "").strip() or "-"
     end_date = data.get("end_date", "").strip() or date
@@ -1456,8 +1459,9 @@ def render_event_summary(data, index):
         except Exception:
             return value or "-"
 
-    date_range = "-" if date == "-" else (pretty(date) if end_date in ("", "-") or date == end_date else f"{pretty(date)} ~ {pretty(end_date)}")
+    date_range = "-" if date == "-" else (pretty(date) if end_date in ("", "-") or date == end_date else f"{pretty(date)} – {pretty(end_date)}")
     time_text = f"{start_time} ~ {end_time}" if start_time and end_time else (start_time or end_time or "-")
+    time_label = "오픈 시간" if re.search(r"(?:오픈\s*시간|오픈|개장\s*시간|운영\s*시작|open(?:ing)?\s*time)", data.get("ocr_text", ""), re.I) else "시간"
 
     with st.container(border=True):
         image_col, info_col = st.columns([1, 1.7])
@@ -1472,40 +1476,37 @@ def render_event_summary(data, index):
                 + (f'<div class="event-display-subtitle">{title_sub}</div>' if title_sub else ""),
                 unsafe_allow_html=True
             )
-            st.markdown("**📅 행사 날짜**")
-            st.markdown(f"### {date_range}")
-            st.markdown("**⏰ 시간**")
-            st.markdown(f"### {time_text}")
+            st.markdown(f'<div class="diary-note"><div class="diary-label">📅 행사 날짜</div><div class="diary-value">{date_range}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="diary-note"><div class="diary-label">⏰ {time_label}</div><div class="diary-value">{time_text}</div></div>', unsafe_allow_html=True)
             st.markdown(f'<div class="diary-note"><div class="diary-label">📍 장소</div><div class="diary-value">{location}</div></div>', unsafe_allow_html=True)
 
         st.divider()
-        st.markdown(
-            '<div style="font-size:1.55rem;font-weight:850;margin:0.25rem 0 0.8rem 0;">🐾 추가 정보</div>',
-            unsafe_allow_html=True
-        )
-        special_info = data.get("special_info", [])
-        if not special_info:
-            special_info = [
-                {"label": "🐾 초청 가수 라인업", "value": "-"},
-                {"label": "🐾 주최·주관", "value": "-"},
-                {"label": "🐾 나이 제한", "value": "-"},
-                {"label": "🐾 주의 사항", "value": "-"},
-            ]
+        st.markdown('<div style="font-size:1.8rem;font-weight:900;margin:0.25rem 0 0.8rem 0;">🐾 추가 정보</div>', unsafe_allow_html=True)
+        special_info = data.get("special_info", []) or [
+            {"label": "🎤 초청 가수 라인업", "value": "-"},
+            {"label": "🏷️ 주최·주관", "value": "-"},
+            {"label": "🔞 나이 제한", "value": "-"},
+            {"label": "⚠️ 주의 사항", "value": "-"},
+        ]
         for item in special_info:
-            st.write(f"**{item['label']}**  {item['value'] or '-'}")
+            label = re.sub(r"^🐾\s*", "", item.get("label", ""))
+            # 항목별 이모지는 초청 가수/주최·주관/연령/주의 사항의 의미를 유지
+            if "초청 가수" in label or "라인업" in label: label = "🎤 초청 가수 라인업"
+            elif "주최" in label or "주관" in label: label = "🏷️ 주최·주관"
+            elif "나이" in label or "연령" in label: label = "🔞 나이 제한"
+            elif "주의" in label: label = "⚠️ 주의 사항"
+            st.write(f"**{label}**  {item.get('value') or '-'}")
 
         if data.get("participation_info"):
             st.divider()
             st.markdown("**🙋 참가 정보**")
             for item in data["participation_info"]:
                 st.write(f"{item['label']}  {item['value'] or '-'}")
-
         st.divider()
         st.markdown("**💡 핵심 내용**")
         st.write(make_keyword_summary(data.get("ocr_text", ""), data))
 
 
-# =========================================================
 # SESSION STATE
 # =========================================================
 if "events" not in st.session_state:
