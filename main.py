@@ -514,6 +514,88 @@ st.markdown(
     .stApp [data-testid="stProgressBar"] > div > div { background-color: #df9a78 !important; }
     .stApp hr { border-color: #e5ddd0 !important; }
 
+    /* 다이어리 스타일을 화면 전체에 더 확실하게 적용 */
+    .stApp, [data-testid="stAppViewContainer"] {
+        background-color: #f5f0e6 !important;
+        background-image: radial-gradient(#d9d0c1 0.65px, transparent 0.65px) !important;
+        background-size: 13px 13px !important;
+    }
+    [data-testid="stMain"] > div {
+        background: rgba(255, 253, 247, .78) !important;
+        border-left: 1px solid #e5dccd !important;
+        border-right: 1px solid #e5dccd !important;
+        max-width: 1120px;
+        margin: 0 auto !important;
+        padding-top: 2rem !important;
+    }
+    .main-title-wrap {
+        position: relative !important;
+        background: repeating-linear-gradient(#fffdf7 0px, #fffdf7 33px, #dce6e9 34px, #fffdf7 35px) !important;
+        border: 1px solid #e0d4c2 !important;
+        border-left: 7px solid #d99a78 !important;
+        border-radius: 3px 8px 8px 3px !important;
+        box-shadow: 7px 8px 0 #e4d9c8, 0 15px 30px rgba(83,69,50,.10) !important;
+        padding: 38px 30px 32px !important;
+        transform: rotate(-.35deg);
+    }
+    .main-title-wrap .main-title { font-size: clamp(30px, 4vw, 44px) !important; letter-spacing: -.04em; }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        position: relative !important;
+        background-color: #fffdf7 !important;
+        background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(105,145,165,.15) 32px, transparent 33px) !important;
+        border: 1px solid #e4d8c7 !important;
+        border-radius: 3px 7px 7px 3px !important;
+        box-shadow: 6px 7px 0 #e6dccd, 0 12px 24px rgba(83,69,50,.07) !important;
+        padding: 22px 20px 20px 30px !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::before {
+        content: "MEMO" !important;
+        position: absolute !important;
+        top: -10px !important; left: 50% !important;
+        width: 76px !important; height: 23px !important;
+        display: flex !important; align-items: center !important; justify-content: center !important;
+        background: #f0d2b7 !important; color: #a76649 !important;
+        font-size: 11px !important; letter-spacing: .12em !important;
+        border: none !important; border-radius: 2px !important;
+        transform: translateX(-50%) rotate(-3deg) !important;
+        box-shadow: 0 2px 3px rgba(83,69,50,.08) !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::after {
+        left: 10px !important; top: 42px !important;
+        background: #f5f0e6 !important; border: 2px solid #c9b58f !important;
+        box-shadow: 0 39px #f5f0e6, 0 39px 0 2px #c9b58f, 0 78px #f5f0e6, 0 78px 0 2px #c9b58f, 0 117px #f5f0e6, 0 117px 0 2px #c9b58f !important;
+    }
+    .diary-note, .info-item {
+        background: #fffefa !important;
+        border: 1px dashed #c9d7dc !important;
+        border-radius: 3px 3px 12px 3px !important;
+        box-shadow: 3px 4px 0 #eee4d5 !important;
+        padding: 18px 20px !important;
+    }
+    .diary-label, .info-label { color: #c27d5a !important; text-transform: uppercase; letter-spacing: .04em; }
+    .diary-value, .info-value { color: #3f6175 !important; }
+    .stApp [data-testid="stFileUploader"] {
+        background: #fffdf7 !important; border: 2px dashed #8caaba !important;
+        border-radius: 4px 4px 14px 4px !important;
+        box-shadow: 5px 6px 0 #e7ddce !important; padding: 12px !important;
+    }
+    .stApp [data-testid="stFileUploaderDropzone"] { background: #fffdf7 !important; border: 0 !important; }
+    .stButton > button, .stDownloadButton > button, [data-testid="stLinkButton"] a {
+        border-radius: 4px 4px 12px 4px !important;
+        box-shadow: 3px 4px 0 #e5d9c9 !important;
+        font-weight: 700 !important; transition: transform .15s ease !important;
+    }
+    .stButton > button:hover, .stDownloadButton > button:hover { transform: translateY(-2px) rotate(-.4deg) !important; }
+    .stTextInput input, .stTextArea textarea, .stDateInput input, .stTimeInput input,
+    .stSelectbox [data-baseweb="select"] > div, .stMultiSelect [data-baseweb="select"] > div {
+        background: #fffefa !important; border: 1px solid #d9cdbb !important; border-radius: 4px !important;
+    }
+    .stApp [data-testid="stExpander"] summary {
+        background: #fffaf0 !important; border: 1px dashed #cdbda5 !important; border-radius: 4px !important;
+    }
+    .stApp h1, .stApp h2, .stApp h3 { color: #3f6175 !important; }
+    .stApp hr { border-color: #dcd0be !important; }
+
     @media (max-width: 700px) {
         .event-title { font-size: 25px; }
         .event-main-info { flex-direction: column; }
@@ -1952,8 +2034,7 @@ if st.session_state.events:
 
             if long_event:
                 st.info(
-                    "📅 5일 이상 진행되는 행사예요. 아래 날짜 선택 목록에는 포스터에서 찾은 날짜 후보만 표시됩니다. "
-                    "실제로 참여할 날짜만 등록하려면 Google Calendar를 연 뒤 날짜를 직접 조정해 주세요.\n\n"
+                    "📅 장기 행사예요. 참여할 날짜를 Google Calendar에서 직접 선택해 주세요.\n\n"
                     f"행사 기간: {data.get('date', '')} ~ {data.get('end_date', '')}"
                 )
 
