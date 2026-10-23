@@ -407,10 +407,118 @@ st.markdown(
     .stApp [data-testid="stFileUploaderDropzone"] { background: transparent; }
     .stApp [data-testid="stProgressBar"] > div > div { background-color: #f1a8bd; }
 
+    /* ───── 종이 다이어리 테마: 크림색 종이 + 오렌지/블루 필기 포인트 ───── */
+    .stApp {
+        background: #f7f5ef !important;
+        color: #34495a !important;
+    }
+    [data-testid="stHeader"] { background: rgba(247,245,239,.92) !important; }
+    .main-title-wrap {
+        max-width: 900px;
+        margin: 10px auto 28px auto;
+        padding: 30px 20px 24px;
+        background: #fffefa;
+        border: 1px solid #e8e1d4;
+        border-radius: 4px 4px 18px 4px;
+        box-shadow: 5px 6px 0 #e8e1d4, 0 12px 28px rgba(72,82,90,.06);
+        transform: rotate(-.25deg);
+    }
+    .main-title-wrap::before {
+        content: "✦  MY EVENT DIARY  ✦";
+        font-family: "Jua", sans-serif;
+        font-size: 13px;
+        letter-spacing: .18em;
+        color: #df8d68;
+        filter: none;
+        margin-bottom: 12px;
+    }
+    .main-title-wrap::after {
+        content: "오늘의 행사도 다이어리에 차곡차곡";
+        color: #6387a0;
+        letter-spacing: .04em;
+        font-size: 13px;
+    }
+    .main-title-wrap .main-title { color: #38566c !important; }
+    .main-title-wrap .main-subtitle { color: #8a8278 !important; }
+
+    [data-testid="stFileUploader"] {
+        background: #fffefa !important;
+        border: 2px dashed #9db7c7 !important;
+        border-radius: 5px 5px 16px 5px !important;
+        box-shadow: 4px 5px 0 #e6e0d5, 0 10px 24px rgba(72,82,90,.05) !important;
+    }
+    [data-testid="stFileUploader"]::after { content: "✎"; color: #df8d68; font-size: 26px; }
+    div.stButton > button[kind="primary"] {
+        background: #5c829a !important;
+        color: #fffefa !important;
+        border: 1px solid #5c829a !important;
+        border-radius: 5px 5px 12px 5px !important;
+        box-shadow: 3px 4px 0 #d6e0e4 !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background: #466b83 !important;
+        border-color: #466b83 !important;
+        transform: translateY(-1px);
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #fffefa !important;
+        background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 35px, rgba(108,143,164,.10) 36px, transparent 37px) !important;
+        border: 1px solid #e7dfd2 !important;
+        border-left: 1px solid #e7dfd2 !important;
+        border-radius: 4px 4px 15px 4px !important;
+        box-shadow: 4px 5px 0 #e9e2d7, 0 12px 25px rgba(72,82,90,.06) !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::before {
+        content: "✦ NOTES ✦" !important;
+        width: 92px !important;
+        height: 25px !important;
+        top: -11px !important;
+        background: #f4d4bd !important;
+        color: #a96448 !important;
+        border-radius: 2px !important;
+        font-family: "Jua", sans-serif !important;
+        font-size: 11px !important;
+        letter-spacing: .08em !important;
+        box-shadow: 0 2px 3px rgba(72,82,90,.08) !important;
+        transform: translateX(-50%) rotate(-2deg) !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::after {
+        background: #f7f5ef !important;
+        border: 2px solid #c5a878 !important;
+        box-shadow: 0 39px #f7f5ef, 0 39px 0 2px #c5a878, 0 78px #f7f5ef, 0 78px 0 2px #c5a878, 0 117px #f7f5ef, 0 117px 0 2px #c5a878, 0 156px #f7f5ef, 0 156px 0 2px #c5a878, 0 195px #f7f5ef, 0 195px 0 2px #c5a878 !important;
+    }
+    .event-title, .event-display-title { color: #38566c !important; }
+    .event-display-subtitle { color: #91877b !important; }
+    .info-item {
+        background: #f8f7f1 !important;
+        border: 1px dashed #c9d7dc !important;
+        border-radius: 4px 4px 12px 4px !important;
+        box-shadow: 2px 3px 0 #eee8dd !important;
+    }
+    .info-label, .diary-label { color: #c17a58 !important; }
+    .info-value, .diary-value { color: #38566c !important; }
+    .diary-note {
+        background: #fffefa !important;
+        border: 1px dashed #c8d6dc !important;
+        border-radius: 4px 4px 12px 4px !important;
+        box-shadow: 2px 3px 0 #eee8dd !important;
+    }
+    .diary-note:nth-of-type(even) { background: #fff8f0 !important; }
+    .diary-note::after { background: #fffefa !important; border-color: #6f94a8 !important; }
+    .stApp [data-testid="stExpander"] summary {
+        background: #f9f6ef !important;
+        border: 1px solid #e4dccc !important;
+        border-radius: 4px 4px 10px 4px !important;
+    }
+    .stApp [data-testid="stExpander"] summary:hover { border-color: #df9a78 !important; }
+    .stApp [data-testid="stProgressBar"] > div > div { background-color: #df9a78 !important; }
+    .stApp hr { border-color: #e5ddd0 !important; }
+
     @media (max-width: 700px) {
         .event-title { font-size: 25px; }
         .event-main-info { flex-direction: column; }
         .main-title-wrap .main-title { font-size: 32px; }
+        [data-testid="stVerticalBlockBorderWrapper"] { padding-left: 34px !important; }
     }
     </style>
     """,
