@@ -820,35 +820,106 @@ def clean_extracted_lines(text):
 
 
 def extract_location(text):
-    text = clean_extracted_lines(text)
-    lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
-    # 라벨이 있는 장소를 가장 우선
-    for line in lines:
-        if re.search(r"^(장소|행사장소|공연장|개최장소|장소안내|venue|location)\s*[:：]", line, re.I):
-            value = clean_labeled_value(line, ["장소", "행사장소", "공연장", "개최장소", "장소안내", "venue", "location"])
-            if value: return value
+    """라벨뿐 아니라 장소명 자체, 주소, 개최 문맥을 함께 살펴 장소를 추정합니다."""
+    text = clean_extracted_lines(text or "")
+    lines = [re.sub(r"\s+", " ", line).strip(" \t:：|-") for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
 
-    # OCR에서 '행사장소' 라벨과 장소명이 서로 다른 줄로 분리되는 경우
-    # 예: 행사장소 / 새마을 공원 운동장
-    location_labels = ("장소", "행사장소", "공연장", "개최장소", "장소안내", "venue", "location")
+    # 1) 장소 라벨이 명시된 경우 가장 우선합니다.
+    label_re = re.compile(r"^(?:장소|행사장소|공연장|개최장소|장소안내|venue|location)\s*[:：|]?\s*(.*)$", re.I)
     for i, line in enumerate(lines):
-        if re.fullmatch(r"(?:장소|행사장소|공연장|개최장소|장소안내|venue|location)", line, re.I):
-            for next_line in lines[i + 1:i + 3]:
-                if next_line and not re.search(r"^(일시|날짜|시간|참가|참여|주최|주관|문의|신청|접수|마감)", next_line, re.I):
-                    return next_line.strip(" :：|-|")
+        m = label_re.match(line)
+        if not m:
+            continue
+        value = m.group(1).strip(" :：|-|")
+        if value and not re.match(r"^(?:확인 필요|미정|추후 공지|일시|날짜|시간)$", value, re.I):
+            return value
+        # 라벨과 장소명이 다른 줄에 인식된 경우
+        for nxt in lines[i + 1:i + 3]:
+            if not re.match(r"^(?:일시|날짜|시간|참가|참여|주최|주관|문의|신청|접수|마감|기간|프로그램)\b", nxt, re.I):
+                if not is_non_location_line(nxt):
+                    return nxt.strip(" :：|-|")
 
-    # '행사장소 새마을 공원 운동장'처럼 한 줄에 붙어 있으나 콜론이 없는 경우
+    # 2) '킨텍스에서 개최', 'OO에서 진행됩니다'처럼 문장으로 쓰인 장소
     for line in lines:
-        m = re.search(r"^(?:장소|행사장소|공연장|개최장소|장소안내)\s+(.+)$", line, re.I)
-        if m and m.group(1).strip():
-            return m.group(1).strip(" :：|-|")
+        if is_non_location_line(line):
+            continue
+        place_pattern = r"([가-힣A-Za-z0-9· .-]{2,70}?(?:전시장|전시관|컨벤션센터|컨벤션홀|문화회관|문화관|아트센터|예술회관|체육관|운동장|야외광장|광장|공원|캠퍼스|대학|학교|플라자|전시실|공연장|콘서트홀|센터|갤러리|경기장|역|빌딩|타워))"
+        place_matches = list(re.finditer(place_pattern, line, re.I))
+        if place_matches:
+            place_match = max(place_matches, key=lambda match: len(match.group(1)))
+            suffix = line[place_match.end():]
+            if re.match(r"\s*(?:에서|으로|에\s*위치|에서\s*개최|에서\s*진행)", suffix):
+                candidate = place_match.group(1).strip(" ,.:：|-|")
+                # 문장 앞의 설명을 제거하고 장소명에 가까운 구절만 반환
+                candidate = re.split(r"(?:이번\s*행사는?|행사는?|장소는?|개최지는?)\s*", candidate)[-1].strip()
+                if candidate:
+                    return candidate
 
-    # 장소 단어가 문장 뒤에 붙은 경우
+    # 3) 주소처럼 보이는 줄은 장소 후보로 사용합니다.
+    address_patterns = [
+        r"(?:대한민국\s*)?(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[가-힣\s0-9-]{2,}(?:로|길|대로)\s*\d*[가-힣0-9-]*",
+        r"[가-힣0-9]+(?:시|군|구)\s*[가-힣0-9]+(?:읍|면|동|리)\s*[가-힣0-9-]*(?:로|길|대로)\s*\d*",
+        r"\b\d{1,5}\s+[A-Za-z][A-Za-z .'-]+(?:Street|Road|Ave|Avenue|Blvd)\b",
+    ]
     for line in lines:
-        if any(k in line.lower() for k in ["문화회관", "문화관", "아트센터", "예술회관", "공연장", "콘서트홀", "체육관", "대강당", "소극장", "대극장", "센터", "홀", "갤러리", "운동장", "야외무대", "공원", "공원 일원", "엑스포", "venue", "hall", "auditorium", "stadium", "park", "theater", "theatre", "arena", "center", "centre", "gallery"]):
-            if not any(k in line for k in ["주최", "문의", "신청"]):
-                return line
+        if not is_non_location_line(line):
+            for pattern in address_patterns:
+                m = re.search(pattern, line, re.I)
+                if m:
+                    return m.group(0).strip()
+
+    # 4) 장소 라벨이 없어도 장소명에서 자주 쓰이는 시설·공간 표현을 찾아냅니다.
+    # '킨텍스 제2전시장 야외광장'처럼 시설명이 한 줄에만 있는 경우도 포함합니다.
+    venue_terms = [
+        "킨텍스", "전시장", "전시관", "야외광장", "광장", "컨벤션센터", "컨벤션홀",
+        "문화회관", "문화관", "아트센터", "예술회관", "공연장", "콘서트홀", "체육관",
+        "대강당", "소극장", "대극장", "센터", "홀", "갤러리", "운동장", "야외무대",
+        "공원", "엑스포", "전시실", "캠퍼스", "대학교", "학교", "플라자", "경기장",
+        "월드컵경기장", "마당", "수목원", "박물관", "미술관", "도서관", "역사", "역",
+        "빌딩", "타워", "주차장", "문화공간", "잔디광장", "야외", "venue", "hall",
+        "auditorium", "stadium", "park", "theater", "theatre", "arena", "center", "centre", "gallery"
+    ]
+    candidates = []
+    for i, line in enumerate(lines):
+        if is_non_location_line(line):
+            continue
+        lower = line.lower()
+        hits = sum(1 for term in venue_terms if term.lower() in lower)
+        if hits:
+            # 너무 긴 홍보 문장은 피하고, 장소명이 포함된 구절을 우선합니다.
+            candidate = line.strip(" ,.:：|-|")
+            candidate = re.sub(r"^(?:위치|주소)\s*[:：]?\s*", "", candidate, flags=re.I)
+            if len(candidate) <= 90:
+                candidates.append((hits, len(candidate), i, candidate))
+    if candidates:
+        # 장소 단서가 많은 줄을 우선하고, 동점이면 짧고 구체적인 줄을 선택
+        candidates.sort(key=lambda x: (-x[0], x[1], x[2]))
+        return candidates[0][3]
+
+    # 5) 위치/개최 문맥 바로 옆에 있는 짧은 독립 줄도 후보로 검토합니다.
+    for i, line in enumerate(lines):
+        if re.search(r"(?:위치|주소|오시는\s*길|개최\s*장소|행사\s*장소|장소\s*안내)", line, re.I):
+            for nxt in lines[i:i + 3]:
+                if not is_non_location_line(nxt) and 2 <= len(nxt) <= 70:
+                    return nxt.strip(" ,.:：|-|")
     return ""
+
+
+def is_non_location_line(line):
+    """장소 후보 탐색 시 행사명·일정·홍보 문구 등을 걸러냅니다."""
+    line = (line or "").strip()
+    if not line or len(line) < 2:
+        return True
+    if re.search(r"(?:주최|주관|문의|신청|접수|참가비|입장료|참가\s*대상|참여\s*방법|초청\s*가수|출연진|일시|행사\s*날짜|기간|마감|http|www\.)", line, re.I):
+        return True
+    if re.search(r"(?:20\d{2}\s*[./년-]\s*\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}[:.]\d{2})", line):
+        return True
+    # 일반적인 행사명/슬로건만 있는 줄은 장소 후보로 쓰지 않습니다.
+    if re.search(r"(?:페스티벌|축제|콘서트|공연|마켓|박람회|대회|행사|음악회|영화제|festival|concert|event)", line, re.I) and not re.search(r"(?:킨텍스|전시장|전시관|광장|센터|홀|공원|운동장|경기장|캠퍼스|대학교|학교|플라자|공연장|문화관|문화회관|아트센터|예술회관|역|빌딩|타워)", line, re.I):
+        return True
+    return False
 
 
 def extract_organizer(text):
@@ -1535,11 +1606,9 @@ def render_event_summary(data, index):
             elif "주의" in label: label = "⚠️ 주의 사항"
             st.write(f"**{label}**  {item.get('value') or '-'}")
 
-        if data.get("participation_info"):
-            st.divider()
-            st.markdown("**🙋 참가 정보**")
-            for item in data["participation_info"]:
-                st.write(f"{item['label']}  {item['value'] or '-'}")
+        # 참가비·참가 대상·참여 방법도 '추가 정보' 영역 안에 통합해 표시합니다.
+        for item in data.get("participation_info", []) or []:
+            st.write(f"**{item['label']}**  {item['value'] or '-'}")
         st.divider()
 
 
@@ -1759,50 +1828,72 @@ if st.session_state.events:
                 st.warning("행사 날짜를 입력하면 캘린더 추가 기능이 나타납니다.")
                 continue
 
-            calendar_url = make_google_calendar_url(data)
-            ics = make_ics(data)
+            # 5일 이상 이어지는 장기 행사는 기간 전체를 자동 등록하지 않도록 합니다.
+            # 사용자가 실제로 참여할 날짜를 캘린더 앱에서 직접 골라 등록하게 안내합니다.
+            long_event = False
+            try:
+                start_dt = datetime.strptime(str(data.get("date", "")).strip()[:10], "%Y-%m-%d")
+                end_value = str(data.get("end_date", "")).strip() or str(data.get("date", "")).strip()
+                end_dt = datetime.strptime(end_value[:10], "%Y-%m-%d")
+                if end_dt >= start_dt:
+                    long_event = (end_dt - start_dt).days + 1 >= 5
+            except (ValueError, TypeError):
+                long_event = False
+
             blocked = data.get("needs_review") and not data.get("confirmed")
 
-            # 날짜가 있으면 모든 행사에 캘린더 영역을 보여주고,
-            # 자동 추출이 애매한 경우에는 확인 전까지 버튼만 비활성화합니다.
-            if blocked:
-                st.info("⚠️ 위의 정보 확인을 완료하면 캘린더에 추가할 수 있습니다.")
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                if calendar_url:
-                    st.link_button(
-                        "🗓️ Google Calendar에 추가",
-                        calendar_url,
-                        use_container_width=True,
-                        disabled=blocked
-                    )
-
-            with col2:
-                if ics:
-                    st.download_button(
-                        "📥 일정 파일 다운로드",
-                        data=ics,
-                        file_name=f"event_{index + 1}.ics",
-                        mime="text/calendar",
-                        use_container_width=True,
-                        key=f"ics_{index}",
-                        disabled=blocked
-                    )
-                    st.caption("Google Calendar 외 다른 캘린더에서도 사용할 수 있는 일정 파일입니다.")
-
-            if st.button(
-                "✅ 캘린더에 추가 완료로 표시",
-                key=f"added_{index}",
-                use_container_width=True
-            ):
-                st.session_state.added_event_keys.add(
-                    event_key(data)
+            if long_event:
+                st.info(
+                    "📅 이 행사는 5일 이상 진행되는 장기 행사예요.\n\n"
+                    "기간의 모든 날짜를 한꺼번에 등록하는 대신, Google Calendar나 휴대전화 캘린더를 열어 "
+                    "실제로 참여할 날짜만 직접 선택해 등록해 주세요.\n\n"
+                    f"행사 기간: {data.get('date', '')} ~ {data.get('end_date', '')}"
                 )
-                data["added"] = True
-                st.session_state.events[index] = data
-                st.rerun()
+            else:
+                calendar_url = make_google_calendar_url(data)
+                ics = make_ics(data)
+
+                # 날짜가 있으면 캘린더 등록 기능을 보여주고,
+                # 자동 추출이 애매한 경우에는 확인 전까지 버튼을 비활성화합니다.
+                if blocked:
+                    st.info("⚠️ 위의 정보 확인을 완료하면 캘린더에 추가할 수 있습니다.")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    if calendar_url:
+                        st.link_button(
+                            "🗓️ Google Calendar에 추가",
+                            calendar_url,
+                            use_container_width=True,
+                            disabled=blocked
+                        )
+
+                with col2:
+                    if ics:
+                        st.download_button(
+                            "📥 일정 파일 다운로드",
+                            data=ics,
+                            file_name=f"event_{index + 1}.ics",
+                            mime="text/calendar",
+                            use_container_width=True,
+                            key=f"ics_{index}",
+                            disabled=blocked
+                        )
+                        st.caption("Google Calendar 외 다른 캘린더에서도 사용할 수 있는 일정 파일입니다.")
+
+                if st.button(
+                    "✅ 캘린더에 추가 완료로 표시",
+                    key=f"added_{index}",
+                    use_container_width=True,
+                    disabled=blocked
+                ):
+                    st.session_state.added_event_keys.add(
+                        event_key(data)
+                    )
+                    data["added"] = True
+                    st.session_state.events[index] = data
+                    st.rerun()
 
 # =========================================================
 # ADDED EVENTS
