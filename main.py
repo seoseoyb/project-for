@@ -1035,7 +1035,7 @@ def extract_location(text):
     for line in lines:
         if is_non_location_line(line):
             continue
-        place_pattern = r"([가-힣A-Za-z0-9· .-]{2,70}?(?:전시장|전시관|컨벤션센터|컨벤션홀|문화회관|문화관|아트센터|예술회관|체육관|운동장|야외광장|광장|공원|캠퍼스|대학|학교|플라자|전시실|공연장|콘서트홀|센터|갤러리|경기장|역|빌딩|타워))"
+        place_pattern = r"([가-힣A-Za-z0-9· &＆.()（）-]{2,70}?(?:가족쉼터|쉼터|몽골문화촌|문화촌|전시장|전시관|컨벤션센터|컨벤션홀|문화회관|문화관|아트센터|예술회관|체육관|운동장|야외광장|광장|공원|캠퍼스|대학|학교|플라자|전시실|공연장|콘서트홀|센터|갤러리|경기장|역|빌딩|타워))"
         place_matches = list(re.finditer(place_pattern, line, re.I))
         if place_matches:
             place_match = max(place_matches, key=lambda match: len(match.group(1)))
@@ -1064,7 +1064,7 @@ def extract_location(text):
     # '킨텍스 제2전시장 야외광장'처럼 시설명이 한 줄에만 있는 경우도 포함합니다.
     venue_terms = [
         "킨텍스", "전시장", "전시관", "야외광장", "광장", "컨벤션센터", "컨벤션홀",
-        "문화회관", "문화관", "아트센터", "예술회관", "공연장", "콘서트홀", "체육관",
+        "가족쉼터", "쉼터", "몽골문화촌", "문화촌", "문화회관", "문화관", "아트센터", "예술회관", "공연장", "콘서트홀", "체육관",
         "대강당", "소극장", "대극장", "센터", "홀", "갤러리", "운동장", "야외무대",
         "공원", "엑스포", "전시실", "캠퍼스", "대학교", "학교", "플라자", "경기장",
         "월드컵경기장", "마당", "수목원", "박물관", "미술관", "도서관", "역사", "역",
@@ -1107,7 +1107,7 @@ def is_non_location_line(line):
     if re.search(r"(?:20\d{2}\s*[./년-]\s*\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}[:.]\d{2})", line):
         return True
     # 일반적인 행사명/슬로건만 있는 줄은 장소 후보로 쓰지 않습니다.
-    if re.search(r"(?:페스티벌|축제|콘서트|공연|마켓|박람회|대회|행사|음악회|영화제|festival|concert|event)", line, re.I) and not re.search(r"(?:킨텍스|전시장|전시관|광장|센터|홀|공원|운동장|경기장|캠퍼스|대학교|학교|플라자|공연장|문화관|문화회관|아트센터|예술회관|역|빌딩|타워)", line, re.I):
+    if re.search(r"(?:페스티벌|축제|콘서트|공연|마켓|박람회|대회|행사|음악회|영화제|festival|concert|event)", line, re.I) and not re.search(r"(?:킨텍스|전시장|전시관|광장|센터|홀|공원|운동장|경기장|캠퍼스|대학교|학교|플라자|공연장|문화관|문화회관|아트센터|예술회관|가족쉼터|쉼터|몽골문화촌|문화촌|역|빌딩|타워)", line, re.I):
         return True
     return False
 
@@ -1156,7 +1156,7 @@ def extract_special_info(text):
     """초청 가수/출연진 등 행사 특유의 추가 정보를 추출합니다."""
     result = []
     groups = [
-        ("🎤 초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"출연진", r"출연\s*가수", r"아티스트", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
+        ("🎤 초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"가수\s*초청", r"출연진", r"출연\s*가수", r"아티스트", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
         ("🐾 주최·주관", [r"주최\s*·?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
         ("🐾 나이 제한", [r"나이\s*제한", r"연령\s*제한", r"관람\s*연령", r"입장\s*연령", r"age(?:\s*limit)?", r"ages?"]),
         ("🐾 주의 사항", [r"주의\s*사항", r"유의\s*사항", r"안내\s*사항", r"입장\s*안내", r"주의", r"please\s*note", r"important\s*notes?", r"notice", r"warnings?", r"no\s+\w+", r"prohibited"]),
@@ -1165,11 +1165,32 @@ def extract_special_info(text):
         values = _extract_labeled_values(text, patterns)
         # 항목이 포스터에 없으면 '정보 확인 필요' 대신 '-'로 표시합니다.
         result.append({"label": label, "value": " / ".join(values[:3]) if values else "-"})
-    # 프로그램 정보는 실제로 적혀 있을 때만 별도 표시합니다.
-    for label, patterns in [("🎬 주요 프로그램", [r"주요\s*프로그램", r"프로그램", r"공연\s*내용", r"programs?"])]:
-        values = _extract_labeled_values(text, patterns)
-        if values:
-            result.append({"label": label, "value": " / ".join(values[:2])})
+    # 프로그램 정보는 라벨이 없더라도 포스터에 명시된 활동 키워드를 모아 표시합니다.
+    program_patterns = [r"주요\s*프로그램", r"프로그램", r"공연\s*내용", r"programs?"]
+    program_values = _extract_labeled_values(text, program_patterns)
+    cleaned_text = clean_extracted_lines(text)
+    activity_terms = [
+        ("캠핑", [r"캠핑", r"캠프", r"camping"]),
+        ("공연", [r"공연", r"버스킹", r"라이브\s*무대"]),
+        ("체험", [r"체험", r"체험존", r"체험\s*프로그램", r"워크숍", r"워크샵"]),
+        ("플리마켓", [r"플리\s*마켓", r"플리마켓", r"프리마켓"]),
+        ("푸드", [r"푸드", r"먹거리", r"음식\s*부스"]),
+        ("전시", [r"전시", r"전시회"]),
+        ("강연", [r"강연", r"토크쇼", r"세미나"]),
+        ("놀이", [r"놀이", r"게임", r"놀이존"]),
+    ]
+    detected = [name for name, patterns in activity_terms if any(re.search(pat, cleaned_text, re.I) for pat in patterns)]
+    if detected:
+        program_values.extend(detected)
+    program_values = list(dict.fromkeys(v for v in program_values if v and v not in {"-", "정보 확인 필요"}))
+    if program_values:
+        result.append({"label": "🎪 체험·공연·즐길거리", "value": " · ".join(program_values[:10])})
+
+    # '공연'이라고 적혀 있지만 가수명이 따로 잡히지 않은 경우 공연 정보를 숨기지 않습니다.
+    singer_item = next((item for item in result if "초청 가수" in item["label"]), None)
+    has_singer_label = bool(re.search(r"초청\s*가수|가수\s*초청|출연진|출연\s*가수|아티스트|line[ -]?up|performers?", cleaned_text, re.I))
+    if singer_item and singer_item["value"] == "-" and re.search(r"공연|버스킹|라이브\s*무대", cleaned_text, re.I) and not has_singer_label:
+        singer_item["value"] = "공연 (출연 가수명은 포스터에서 확인 필요)"
     return result
 
 
@@ -1401,6 +1422,24 @@ def make_event_data(text, source_name="", image_bytes=None):
             re.sub(r"^\d{4}", poster_year, d) if re.match(r"^\d{4}-", d) else d
             for d in date_candidates
         ]
+    # '2025. 11. 1.토 - 22. 일'처럼 끝 날짜의 월/연도와 요일 표기가 생략된 범위 보완
+    range_with_weekday = re.search(
+        r"(?<!\d)(?P<year>20\d{2})\s*[./년-]\s*(?P<sm>\d{1,2})\s*[./월-]\s*(?P<sd>\d{1,2})\s*(?:일)?\s*[.]?\s*(?:\(?[월화수목금토일](?:요일)?\)?)?\s*(?:▶|>|~|～|〜|부터|–|—|-)\s*(?:(?P<ey>20\d{2})\s*[./년-]\s*)?(?:(?P<em>\d{1,2})\s*[./월-]\s*)?(?P<ed>\d{1,2})\s*(?:일)?\s*[.]?\s*(?:\(?[월화수목금토일](?:요일)?\)?)?",
+        text,
+    )
+    if range_with_weekday:
+        try:
+            ry = int(range_with_weekday.group("year"))
+            sm = int(range_with_weekday.group("sm")); sd = int(range_with_weekday.group("sd"))
+            ey = int(range_with_weekday.group("ey") or ry)
+            em = int(range_with_weekday.group("em") or sm)
+            ed = int(range_with_weekday.group("ed"))
+            start_d = datetime(ry, sm, sd).strftime("%Y-%m-%d")
+            end_d = datetime(ey, em, ed).strftime("%Y-%m-%d")
+            if start_d not in date_candidates: date_candidates.insert(0, start_d)
+            if end_d not in date_candidates: date_candidates.append(end_d)
+        except (ValueError, TypeError):
+            pass
     # 같은 줄에 '10.17(토) ▶ 18(일)'처럼 종료 월/연도가 생략된 날짜 범위 보완
     if poster_year:
         range_match = re.search(r"(?<!\d)(\d{1,2})\s*[./]\s*(\d{1,2})\s*(?:일)?\s*(?:\([^)]{1,8}\))?\s*(?:▶|>|~|～|〜|부터|–|—|-)\s*(?:(\d{1,2})\s*[./]\s*)?(\d{1,2})\s*(?:일)?", text)
