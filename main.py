@@ -1233,6 +1233,13 @@ def extract_title(text):
         "경기", "체험전", "발표회", "음악제", "영화제", "문화제",
         "festival", "concert", "event", "day", "fest", "fair", "exhibition", "show", "market", "conference"
     ]
+    location_words = (
+        "가족쉼터", "쉼터", "문화촌", "문화회관", "문화센터", "센터", "전시장",
+        "전시관", "광장", "공원", "운동장", "경기장", "캠퍼스", "대학교", "학교",
+        "공연장", "아트센터", "예술회관", "킨텍스", "플라자", "역", "빌딩", "타워",
+        "야외무대", "주차장", "체육관", "수련관", "박물관", "미술관", "도서관"
+    )
+
     excluded_words = [
         "일시", "기간", "일정", "장소", "문의", "주최", "주관", "신청", "접수",
         "마감", "등록", "주소", "홈페이지", "http", "www.", "참가비", "입장료",
@@ -1291,8 +1298,11 @@ def extract_title(text):
             score += 2
         if re.search(r"[가-힣]", line):
             score += 3
-        if any(word in line for word in title_type_words):
+        if any(word in line.lower() for word in title_type_words):
             score += 12
+        # 장소 시설명이 제목처럼 점수화되는 것을 방지합니다.
+        if any(word in line for word in location_words):
+            score -= 12
         if 8 <= len(line) <= 38:
             score += 4
         if len(line) > 45:
@@ -1324,7 +1334,7 @@ def extract_title(text):
             prefix_parts = []
             for j in range(type_line_idx + 1):
                 part = block[j]
-                if is_metadata(part):
+                if is_metadata(part) or any(word in part for word in location_words):
                     prefix_parts = []
                     break
                 # 날짜만 있거나 설명형 문장인 앞줄은 제목에 붙이지 않습니다.
@@ -1360,17 +1370,26 @@ def extract_title(text):
         fallback = clean_line(lines[0])
         return fallback or lines[0][:50]
 
-    # 상단 제목이 여러 줄로 나뉘는 포스터의 제목 후보 보강
+    # 상단 제목이 여러 줄로 나뉜 경우만 결합합니다.
+    # 장소명(예: '수동 가족쉼터 & 봄꽃문화촌')을 제목에 붙이지 않도록
+    # 시설·장소 단서가 있는 줄은 제목 후보 결합에서 제외합니다.
     top_parts = []
     for raw in lines[:6]:
         candidate = clean_line(raw)
-        if candidate and not is_metadata(candidate) and 3 <= len(candidate) <= 30:
-            if not re.search(r"20\d{2}년?\s*\d{1,2}월|오후|오전|OPEN|서울|광진구|캠퍼스", candidate, re.I):
-                top_parts.append(candidate)
+        if not candidate or is_metadata(candidate) or not 3 <= len(candidate) <= 30:
+            continue
+        if re.search(r"20\d{2}년?\s*\d{1,2}월|오후|오전|OPEN|서울|광진구|캠퍼스", candidate, re.I):
+            continue
+        if any(word in candidate for word in location_words):
+            continue
+        top_parts.append(candidate)
     if top_parts:
+        # 결합 후보에 행사 유형이 들어 있는 경우에만 점수를 높게 줍니다.
+        # 행사명 자체가 완성된 한 줄이면 그 제목을 그대로 우선합니다.
         combined_top = " ".join(top_parts[:2]).strip()
-        if 4 <= len(combined_top) <= 45:
-            candidates.append((28, 0, combined_top))
+        has_event_type = any(word in combined_top.lower() for word in title_type_words)
+        if 4 <= len(combined_top) <= 45 and has_event_type:
+            candidates.append((25, 0, combined_top))
 
     # 행사 유형이 포함된 짧고 완성된 제목을 우선 선택합니다.
     candidates.sort(
