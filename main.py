@@ -1844,56 +1844,54 @@ if st.session_state.events:
 
             if long_event:
                 st.info(
-                    "📅 이 행사는 5일 이상 진행되는 장기 행사예요.\n\n"
-                    "기간의 모든 날짜를 한꺼번에 등록하는 대신, Google Calendar나 휴대전화 캘린더를 열어 "
-                    "실제로 참여할 날짜만 직접 선택해 등록해 주세요.\n\n"
+                    "📅 5일 이상 진행되는 행사예요. 아래 날짜 선택 목록에는 포스터에서 찾은 날짜 후보만 표시됩니다. "
+                    "실제로 참여할 날짜만 등록하려면 Google Calendar를 연 뒤 날짜를 직접 조정해 주세요.\n\n"
                     f"행사 기간: {data.get('date', '')} ~ {data.get('end_date', '')}"
                 )
-            else:
-                calendar_url = make_google_calendar_url(data)
-                ics = make_ics(data)
 
-                # 날짜가 있으면 캘린더 등록 기능을 보여주고,
-                # 자동 추출이 애매한 경우에는 확인 전까지 버튼을 비활성화합니다.
-                if blocked:
-                    st.info("⚠️ 위의 정보 확인을 완료하면 캘린더에 추가할 수 있습니다.")
+            # 장기 행사 여부와 관계없이 캘린더 추가 버튼은 항상 표시합니다.
+            calendar_url = make_google_calendar_url(data)
+            ics = make_ics(data)
 
-                col1, col2 = st.columns(2)
+            if blocked:
+                st.info("⚠️ 위의 정보 확인을 완료하면 캘린더에 추가할 수 있습니다.")
 
-                with col1:
-                    if calendar_url:
-                        st.link_button(
-                            "🗓️ Google Calendar에 추가",
-                            calendar_url,
-                            use_container_width=True,
-                            disabled=blocked
-                        )
+            col1, col2 = st.columns(2)
 
-                with col2:
-                    if ics:
-                        st.download_button(
-                            "📥 일정 파일 다운로드",
-                            data=ics,
-                            file_name=f"event_{index + 1}.ics",
-                            mime="text/calendar",
-                            use_container_width=True,
-                            key=f"ics_{index}",
-                            disabled=blocked
-                        )
-                        st.caption("Google Calendar 외 다른 캘린더에서도 사용할 수 있는 일정 파일입니다.")
-
-                if st.button(
-                    "✅ 캘린더에 추가 완료로 표시",
-                    key=f"added_{index}",
-                    use_container_width=True,
-                    disabled=blocked
-                ):
-                    st.session_state.added_event_keys.add(
-                        event_key(data)
+            with col1:
+                if calendar_url:
+                    st.link_button(
+                        "🗓️ Google Calendar에 추가",
+                        calendar_url,
+                        use_container_width=True,
+                        disabled=blocked
                     )
-                    data["added"] = True
-                    st.session_state.events[index] = data
-                    st.rerun()
+
+            with col2:
+                if ics:
+                    st.download_button(
+                        "📥 일정 파일 다운로드",
+                        data=ics,
+                        file_name=f"event_{index + 1}.ics",
+                        mime="text/calendar",
+                        use_container_width=True,
+                        key=f"ics_{index}",
+                        disabled=blocked
+                    )
+                    st.caption("Google Calendar 외 다른 캘린더에서도 사용할 수 있는 일정 파일입니다.")
+
+            if st.button(
+                "✅ 캘린더에 추가 완료로 표시",
+                key=f"added_{index}",
+                use_container_width=True,
+                disabled=blocked
+            ):
+                st.session_state.added_event_keys.add(
+                    event_key(data)
+                )
+                data["added"] = True
+                st.session_state.events[index] = data
+                st.rerun()
 
 # =========================================================
 # ADDED EVENTS
