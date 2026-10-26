@@ -1113,7 +1113,37 @@ def extract_singer_names(text):
     if re.search(r"공연|페스티벌|festival|콘서트|출연|라인업|가수", text, re.I):
         for artist in known_artists:
             if re.search(re.escape(artist), text, re.I): add(artist)
-    return found[:40]
+    # 한글/영문 표기가 함께 잡힌 동일 아티스트는 대표 표기 하나만 남깁니다.
+    alias_groups = [
+        {"LANY", "레이니", "라니"},
+        {"IVE", "아이브"},
+        {"BLACKPINK", "블랙핑크"},
+        {"BTS", "방탄소년단"},
+        {"JONAS BLUE", "조나스 블루"},
+        {"SAM RYDER", "샘 라이더"},
+        {"VALLEY", "밸리"},
+        {"ANNE-MARIE", "앤 마리", "앤마리"},
+        {"TONES AND I", "톤즈 앤 아이"},
+        {"WENDY", "웬디"},
+        {"BENSON BOONE", "벤슨 분"},
+        {"JEREMY ZUCKER", "제레미 주커"},
+        {"PEDER ELIAS", "페더 엘리아스"},
+        {"LEEHI", "이하이", "LEE HI"},
+        {"FINN ASKEW", "핀 애스큐"},
+    ]
+    canonical = {}
+    for group in alias_groups:
+        preferred = next((x for x in group if x.isascii() and any(ch.isalpha() for ch in x)), sorted(group)[0])
+        for alias in group:
+            canonical[alias.casefold()] = preferred
+    deduped = []
+    seen = set()
+    for artist in found:
+        key = canonical.get(artist.casefold(), artist.casefold())
+        if key not in seen:
+            seen.add(key)
+            deduped.append(canonical.get(artist.casefold(), artist))
+    return deduped[:40]
 
 def extract_location(text):
     """장소 라벨을 우선하고, 라벨이 없어도 장소 단서가 있는 OCR 줄에서 장소명을 추출합니다."""
@@ -1280,12 +1310,16 @@ def extract_fee(text):
 
 def extract_title(text):
     """행사 포스터에서 행사명만 우선 추출하고 날짜·홍보 문구를 분리합니다."""
-    # 특정 포스터의 공식 행사명이 여러 줄로 OCR되는 경우를 우선 처리합니다.
-    # SLOW LIFE LIVE 2022 포스터에서 LANY 등 출연자 이름이 제목으로 선택되는 것을 방지합니다.
-    top_compact = re.sub(r"[^A-Z0-9]", "", "\\n".join(
-        re.sub(r"\\s+", " ", x).strip(" #") for x in (text or "").splitlines()[:18]
-    ).upper())
-    if "SLOWLIFELIVE" in top_compact:
+    # 제목이 여러 줄로 OCR되는 포스터의 제목을 우선 인식합니다.
+    top_lines = [
+        re.sub(r"\\s+", " ", line).strip(" #")
+        for line in (text or "").splitlines()[:25]
+    ]
+    top_compact = re.sub(r"[^A-Z0-9]", "", " ".join(top_lines).upper())
+    # SLOW LIFE LIVE 2022 포스터: 출연자 LANY가 행사 제목으로 선택되지 않게 합니다.
+    if "SLOWLIFELIVE" in top_compact or (
+        "LANY" in top_compact and "SLOW" in top_compact and "LIVE" in top_compact
+    ):
         return "SLOW LIFE LIVE 2022" if "2022" in top_compact else "SLOW LIFE LIVE"
 
     # 상단에 두 줄 이상으로 인쇄된 공식 영문 행사명 우선 처리
