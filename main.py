@@ -1057,81 +1057,110 @@ def extract_ticket_info(text):
 
 
 def extract_singer_names(text):
-    """라인업을 요일별로 묶어 표시하고, 한글/영문 중복 및 홍보 문구를 제거합니다."""
+    """OCR 줄 순서를 최대한 보존하면서 요일별 출연진을 정리합니다."""
     text = clean_extracted_lines(text or "")
     lines = [re.sub(r"\s+", " ", line).strip(" •·|,-") for line in text.splitlines() if line.strip()]
     if not lines:
         return []
 
-    # 이 포스터에서 자주 보이는 국내/해외 출연진 표기를 포함합니다.
-    known_artists = [
-        "볼빨간사춘기", "불빨간사춘기", "소란", "10CM", "어반자카파", "적재", "정아", "정준일",
-        "HYNN", "박혜원", "데이먼스이어", "데이브레이크", "멜로망스", "스텔라장", "이승윤",
-        "정재균", "정승환", "페퍼톤스", "국카스텐", "클렌체크", "이디오테잎", "에피톤 프로젝트",
-        "곽진언", "최유리", "로맨틱펀치", "레이지본", "SUR L", "실리카겔", "자우림", "크라잉넛",
-        "노브레인", "ADOY", "하동균", "카더가든", "가프트", "안녕하신가영", "안녕히신가영",
-        "LANY", "JONAS BLUE", "SAM RYDER", "VALLEY", "GEORGE", "ANNE-MARIE", "TONES AND I",
-        "WENDY", "BENSON BOONE", "REILEY", "JEREMY ZUCKER", "PEDER ELIAS", "LEEHI", "FINN ASKEW",
-        "아이유", "성시경", "임영웅", "장윤정", "송가인", "박서진", "영탁", "이찬원", "김호중",
-        "나훈아", "조용필", "싸이", "이무진", "윤하", "백지영", "김연자", "홍진영", "김범수",
-        "박정현", "잔나비", "폴킴", "BTS", "BLACKPINK", "세븐틴", "IVE", "아이브", "에스파",
-        "뉴진스", "레드벨벳", "트와이스", "레이니", "라니"
+    # 한글/영문 별칭은 하나의 표준 이름으로 합칩니다.
+    artist_aliases = [
+        ("볼빨간사춘기", ["볼빨간사춘기", "불빨간사춘기"]),
+        ("소란", ["소란"]), ("10CM", ["10CM", "십센치"]),
+        ("어반자카파", ["어반자카파"]), ("적재", ["적재"]),
+        ("정아", ["정아"]), ("정준일", ["정준일"]),
+        ("HYNN", ["HYNN", "박혜원"]),
+        ("데이먼스 이어", [r"데이먼스\s*이어", r"DAMON[’']?S\s*YEAR", "DAMONSYEAR"]),
+        ("데이브레이크", ["데이브레이크", "DAYBREAK"]),
+        ("멜로망스", ["멜로망스", "MELOMANCE"]),
+        ("스텔라장", ["스텔라장", "STELLA JANG"]),
+        ("이승윤", ["이승윤"]), ("정재균", ["정재균"]), ("정승환", ["정승환"]),
+        ("페퍼톤스", ["페퍼톤스", "PEPPERTONES"]),
+        ("국카스텐", ["국카스텐"]), ("클렌체크", ["클렌체크", "GLEN CHECK"]),
+        ("이디오테잎", ["이디오테잎", "IDIOTAPE"]),
+        ("에피톤 프로젝트", ["에피톤 프로젝트", "EPITONE PROJECT"]),
+        ("곽진언", ["곽진언"]), ("최유리", ["최유리"]),
+        ("로맨틱펀치", ["로맨틱펀치"]), ("레이지본", ["레이지본"]),
+        ("SUR L", [r"\bSUR\s*L\b"]),
+        ("실리카겔", ["실리카겔", "SILICA GEL"]), ("자우림", ["자우림"]),
+        ("크라잉넛", ["크라잉넛"]), ("노브레인", ["노브레인"]),
+        ("ADOY", ["ADOY"]), ("하동균", ["하동균"]),
+        ("카더가든", ["카더가든", "CAR THE GARDEN"]), ("가프트", ["가프트"]),
+        ("안녕하신가영", ["안녕하신가영", "안녕히신가영"]),
+        ("LANY", [r"\bLANY\b", "레이니", "라니"]),
+        ("JONAS BLUE", ["JONAS BLUE"]), ("SAM RYDER", ["SAM RYDER"]),
+        ("VALLEY", [r"\bVALLEY\b"]), ("GEORGE", [r"\bGEORGE\b"]),
+        ("ANNE-MARIE", ["ANNE-MARIE", "ANNE MARIE"]),
+        ("TONES AND I", ["TONES AND I"]), ("WENDY", [r"\bWENDY\b"]),
+        ("BENSON BOONE", ["BENSON BOONE"]), ("REILEY", [r"\bREILEY\b"]),
+        ("JEREMY ZUCKER", ["JEREMY ZUCKER"]), ("PEDER ELIAS", ["PEDER ELIAS"]),
+        ("LEEHI", [r"\bLEEHI\b", "이하이"]), ("FINN ASKEW", ["FINN ASKEW"]),
+        ("아이유", ["아이유", r"\bIU\b"]), ("성시경", ["성시경"]),
+        ("임영웅", ["임영웅"]), ("장윤정", ["장윤정"]), ("송가인", ["송가인"]),
+        ("박서진", ["박서진"]), ("영탁", ["영탁"]), ("이찬원", ["이찬원"]),
+        ("김호중", ["김호중"]), ("나훈아", ["나훈아"]), ("조용필", ["조용필"]),
+        ("싸이", [r"\bPSY\b", "싸이"]), ("이무진", ["이무진"]),
+        ("윤하", ["윤하"]), ("백지영", ["백지영"]), ("김연자", ["김연자"]),
+        ("홍진영", ["홍진영"]), ("김범수", ["김범수"]), ("박정현", ["박정현"]),
+        ("잔나비", ["잔나비"]), ("폴킴", ["폴킴"]), ("BTS", [r"\bBTS\b"]),
+        ("BLACKPINK", ["BLACKPINK"]), ("세븐틴", ["세븐틴", "SEVENTEEN"]),
+        ("IVE", [r"\bIVE\b", "아이브"]), ("에스파", ["에스파", "AESPA", r"A\s*ESPA"]),
+        ("뉴진스", ["뉴진스", "NEWJEANS"]), ("레드벨벳", ["레드벨벳"]),
+        ("트와이스", ["트와이스", "TWICE"]),
     ]
-    # 날짜별 섹션은 SAT/토, SUN/일 제목을 기준으로 분리합니다.
+
+    # 헤더가 'SUNDAY 데이먼스 이어'처럼 같은 줄에 이름과 붙어 있어도
+    # 헤더만 버리지 않고, 뒤에 이어지는 출연자 이름을 계속 분석합니다.
+    day_header = re.compile(r"^\s*(?:#{1,3}\s*)?(SATURDAY|SAT|SUN(?:DAY)?|토요일|토|일요일|일)\b[\s:：|·-]*", re.I)
     sections = {"토": [], "일": []}
     current_day = None
     found_any = []
 
-    skip_patterns = re.compile(
-        r"예매|티켓|인터파크|멜론|YES\s*24|주최|주관|제작지원|지원|문의|http|www|"
-        r"release|released|line.?up|grand\s*mint|festival|올림픽\s*공원|olympic\s*park|"
-        r"ticket|mint\s*paper|present",
-        re.I
-    )
-    day_pattern = re.compile(r"^\s*(?:#{1,3}\s*)?(?:SAT(?:URDAY)?|SUN(?:DAY)?|토(?:요일)?|일(?:요일)?)\b", re.I)
+    for original_line in lines:
+        line = original_line
+        header = day_header.match(line)
+        if header:
+            token = header.group(1).upper()
+            current_day = "토" if token.startswith("SAT") or token.startswith("토") else "일"
+            line = line[header.end():].strip(" :：|·-")
+            if not line:
+                continue
 
-    for line in lines:
-        # 날짜/요일 표기가 있는 헤더를 먼저 처리
-        upper = line.upper()
-        if re.search(r"\bSAT(?:URDAY)?\b|토(?:요일)?", upper, re.I):
-            current_day = "토"
-            continue
-        if re.search(r"\bSUN(?:DAY)?\b|일(?:요일)?", upper, re.I):
-            current_day = "일"
-            continue
-        if skip_patterns.search(line):
-            continue
-        # OCR이 한 줄에 여러 이름을 붙인 경우 각 이름을 known artist와 대조합니다.
-        matches = []
-        for artist in known_artists:
-            if re.search(re.escape(artist), line, re.I):
-                canonical = artist
-                # 같은 아티스트의 표기 통일
-                aliases = {
-                    "불빨간사춘기": "볼빨간사춘기",
-                    "박혜원": "HYNN",
-                    "아이브": "IVE",
-                    "레이니": "LANY",
-                    "라니": "LANY",
-                    "안녕히신가영": "안녕하신가영",
-                }
-                canonical = aliases.get(canonical, canonical)
-                if canonical not in matches:
-                    matches.append(canonical)
-        for artist in matches:
+        # 'RELEASE', 티켓 안내, 행사명/장소 같은 홍보 문구는 이름으로 취급하지 않습니다.
+        matches_with_pos = []
+        for canonical, aliases in artist_aliases:
+            positions = []
+            for alias in aliases:
+                try:
+                    match = re.search(alias, line, re.I)
+                except re.error:
+                    continue
+                if match:
+                    positions.append(match.start())
+            if positions:
+                matches_with_pos.append((min(positions), canonical))
+
+        # OCR 한 줄에 여러 아티스트가 있으면 문자열에 등장한 순서대로 표시합니다.
+        matches_with_pos.sort(key=lambda item: item[0])
+        line_matches = []
+        for _, artist in matches_with_pos:
+            if artist not in line_matches:
+                line_matches.append(artist)
+
+        for artist in line_matches:
             if artist not in found_any:
                 found_any.append(artist)
             if current_day and artist not in sections[current_day]:
                 sections[current_day].append(artist)
 
-    # 요일 구분이 감지되면 각 요일별로 출력하고, 그렇지 않으면 단일 목록으로 표시합니다.
+    # 요일별로 읽힌 경우, 빈 요일은 만들어내지 않고 실제로 인식된 출연자만 표시합니다.
     if sections["토"] or sections["일"]:
         result = []
         if sections["토"]:
-            result.append("토: " + ", ".join(sections["토"]))
+            result.append("토요일\n" + "\n".join(f"• {name}" for name in sections["토"]))
         if sections["일"]:
-            result.append("일: " + ", ".join(sections["일"]))
-        return [" / ".join(result)]
+            result.append("일요일\n" + "\n".join(f"• {name}" for name in sections["일"]))
+        return result
     return found_any
 
 def extract_location(text):
@@ -1963,7 +1992,24 @@ def render_event_summary(data, index):
             elif "주최" in label or "주관" in label: label = "🏷️ 주최·주관"
             elif "나이" in label or "연령" in label: label = "🔞 나이 제한"
             elif "주의" in label: label = "⚠️ 주의 사항"
-            st.write(f"**{label}**  {item.get('value') or '-'}")
+            value = item.get("value") or "-"
+            if "초청 가수" in label or "라인업" in label:
+                # 요일/가수별로 세로 정렬해 한눈에 구분되도록 표시합니다.
+                st.markdown(f"**{label}**")
+                if value == "-":
+                    st.write("-")
+                else:
+                    for block in str(value).split(" / "):
+                        lines = [part.strip() for part in block.splitlines() if part.strip()]
+                        if len(lines) > 1 and lines[0].endswith("요일"):
+                            st.markdown(f"**{lines[0]}**")
+                            for artist_line in lines[1:]:
+                                st.markdown(f"&nbsp;&nbsp;{artist_line}", unsafe_allow_html=True)
+                        else:
+                            for artist_line in lines:
+                                st.markdown(artist_line)
+            else:
+                st.write(f"**{label}**  {value}")
 
         # 참가비·참가 대상·참여 방법도 '추가 정보' 영역 안에 통합해 표시합니다.
         for item in data.get("participation_info", []) or []:
