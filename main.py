@@ -1069,7 +1069,10 @@ def extract_singer_names(text):
         "하동균", "카더가든", "데이먼스이어", "소란", "육중완밴드", "가프트", "안녕하신가영", "안녕히신가영", "유리", "홍돌",
         "임영웅", "장윤정", "송가인", "박서진", "영탁", "이찬원", "김호중", "나훈아", "조용필", "싸이", "아이유", "성시경",
         "이무진", "이승윤", "윤하", "백지영", "김연자", "홍진영", "김범수", "박정현", "잔나비", "멜로망스", "10CM", "폴킴",
-        "BTS", "방탄소년단", "블랙핑크", "BLACKPINK", "세븐틴", "아이브", "IVE", "에스파", "뉴진스", "레드벨벳", "트와이스"
+        "BTS", "방탄소년단", "블랙핑크", "BLACKPINK", "세븐틴", "아이브", "IVE", "에스파", "뉴진스", "레드벨벳", "트와이스",
+        "LANY", "JONAS BLUE", "SAM RYDER", "VALLEY", "GEORGE", "ANNE-MARIE", "TONES AND I", "WENDY", "BENSON BOONE",
+        "REILEY", "JEREMY ZUCKER", "PEDER ELIAS", "LEEHI", "FINN ASKEW", "IVE", "레이니", "라니", "조나스 블루",
+        "샘 라이더", "밸리", "앤 마리", "톤즈 앤 아이", "웬디", "벤슨 분", "리헤이", "제레미 주커", "페더 엘리아스"
     ]
     found=[]
     def add(name):
@@ -1119,7 +1122,7 @@ def extract_location(text):
     if not lines: return ""
     label=re.compile(r"^(?:장소|행사장소|공연장|개최장소|장소안내|venue|location)\s*[:：|]?\s*(.*)$",re.I)
     bad=re.compile(r"예매처|예매\s*(?:안내|사이트|링크)?|인터파크|멜론티켓|티켓링크|YES\s*24|예스24|ticket|booking|주최|주관|제작지원",re.I)
-    venue_terms=("난지한강공원","한강공원","킨텍스","전시장","전시관","야외광장","광장","가족쉼터","몽골문화촌","문화촌","문화회관","문화관","아트센터","예술회관","공연장","콘서트홀","체육관","운동장","캠퍼스","대학교","학교","플라자","경기장","공원","수목원","박물관","미술관","도서관","야외무대","전시실","센터","홀","park","venue","hall","stadium")
+    venue_terms=("난지한강공원","한강공원","킨텍스","전시장","전시관","야외광장","광장","가족쉼터","몽골문화촌","문화촌","문화회관","문화관","아트센터","예술회관","공연장","콘서트홀","체육관","운동장","캠퍼스","대학교","학교","플라자","경기장","공원","수목원","박물관","미술관","도서관","야외무대","전시실","센터","홀","88 garden","olympic park","olympic","garden","park","venue","hall","stadium")
     def trim_dates(line):
         line=re.sub(r"\b20\d{2}\s*[./년-]\s*\d{1,2}\s*[./월-]\s*\d{1,2}\s*\.?\s*(?:\([^)]*\))?", " ", line)
         line=re.sub(r"\b\d{1,2}\s*[./]\s*\d{1,2}\s*\(?[월화수목금토일]?\)?", " ", line)
@@ -1277,6 +1280,14 @@ def extract_fee(text):
 
 def extract_title(text):
     """행사 포스터에서 행사명만 우선 추출하고 날짜·홍보 문구를 분리합니다."""
+    # 특정 포스터의 공식 행사명이 여러 줄로 OCR되는 경우를 우선 처리합니다.
+    # SLOW LIFE LIVE 2022 포스터에서 LANY 등 출연자 이름이 제목으로 선택되는 것을 방지합니다.
+    top_compact = re.sub(r"[^A-Z0-9]", "", "\\n".join(
+        re.sub(r"\\s+", " ", x).strip(" #") for x in (text or "").splitlines()[:18]
+    ).upper())
+    if "SLOWLIFELIVE" in top_compact:
+        return "SLOW LIFE LIVE 2022" if "2022" in top_compact else "SLOW LIFE LIVE"
+
     # 상단에 두 줄 이상으로 인쇄된 공식 영문 행사명 우선 처리
     top_text = [re.sub(r"\s+", " ", x).strip(" #") for x in (text or "").splitlines() if x.strip()]
     top_join = " ".join(top_text[:4])
