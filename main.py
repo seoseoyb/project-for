@@ -707,12 +707,6 @@ def extract_date_candidates(text):
     마감일로 처리하지 않습니다. 각 날짜와 가장 가까운 라벨을 기준으로 판단합니다.
     """
     text = clean_extracted_lines(text or "")
-    # OCR에서 행사명이 여러 줄로 나뉘어도 상단의 공식 영문 제목을 합칩니다.
-    top_text = [re.sub(r"\s+", " ", x).strip(" #") for x in (text or "").splitlines() if x.strip()]
-    top_join = " ".join(top_text[:4])
-    if re.search(r"lets\s*rock", top_join, re.I) and re.search(r"festival", top_join, re.I):
-        yr = re.search(r"\b20\d{2}\b", top_join) or re.search(r"\b20\d{2}\b", text or "")
-        return f"Let's ROCK Festival {yr.group(0)}" if yr else "Let's ROCK Festival"
     raw_lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines()]
     lines = [line for line in raw_lines if line]
     if not lines:
@@ -875,7 +869,7 @@ def extract_event_dates(text):
     """마감일로 판별되지 않은 날짜를 행사 날짜 후보로 반환합니다."""
     result = []
     for item in extract_date_candidates(text):
-        if not item["is_deadline"] and item["date"] not in result:
+        if not item.get("is_deadline", False) and item.get("date") and item["date"] not in result:
             result.append(item["date"])
     return result
 
