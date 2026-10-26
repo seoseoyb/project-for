@@ -1009,31 +1009,139 @@ def clean_extracted_lines(text):
     return "\n".join(cleaned)
 
 
+
+def is_ticketing_text(value):
+    """예매·예약 정보가 장소로 잘못 들어가는 것을 막습니다."""
+    return bool(re.search(
+        r"예매처|예매\s*(?:하기|안내|사이트|링크|페이지|문의|처)?|티켓\s*(?:예매|링크|구매|오픈|판매|안내)?|"
+        r"인터파크|멜론티켓|티켓링크|YES\s*24|예스24|네이버\s*예약|예약\s*(?:하기|링크|페이지|사이트)|"
+        r"ticket(?:ing|master|link)?|booking\s*(?:site|link|office)?|buy\s*tickets?|book\s*now",
+        str(value or ""), re.I
+    ))
+
+
+def extract_ticket_info(text):
+    """예매처 이름이나 예매 안내를 추가 정보로 분리합니다."""
+    text = clean_extracted_lines(text or "")
+    lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
+    values = []
+    label_re = re.compile(
+        r"(?:예매처|예매\s*안내|티켓\s*예매|예매\s*사이트|예매\s*링크|예약\s*안내|"
+        r"ticket(?:ing)?\s*(?:site|link|info)?|booking\s*(?:site|link)?)\s*[:：]?\s*(.*)",
+        re.I
+    )
+    providers = re.compile(
+        r"인터파크(?:\s*티켓)?|멜론티켓|티켓링크|예스24(?:\s*티켓)?|YES\s*24(?:\s*TICKET)?|"
+        r"네이버\s*예약|카카오\s*예약|NOL\s*티켓|티켓베이",
+        re.I
+    )
+    for i, line in enumerate(lines):
+        m = label_re.search(line)
+        if m:
+            value = m.group(1).strip(" :：|-")
+            if value:
+                values.append(value)
+            elif i + 1 < len(lines):
+                nxt = lines[i + 1].strip(" :：|-")
+                if nxt and not re.search(r"^(?:장소|행사장소|일시|기간|문의|주최|주관)\b", nxt, re.I):
+                    values.append(nxt)
+        # 라벨 없이 예매처 브랜드만 적힌 경우도 찾습니다.
+        if providers.search(line) and not label_re.search(line):
+            values.append(line.strip(" :：|-"))
+    cleaned = []
+    for value in values:
+        value = re.sub(r"https?://\S+|www\.\S+", "", value).strip(" ,;·|")
+        if value and value not in cleaned and len(value) <= 120:
+            cleaned.append(value)
+    return " / ".join(cleaned[:3]) if cleaned else ""
+
+
+def extract_singer_names(text):
+    """라인업 구역과 알려진 아티스트 이름을 이용해 가수 후보를 모읍니다."""
+    text = clean_extracted_lines(text or "")
+    lines = [re.sub(r"\s+", " ", line).strip(" •·|,-") for line in text.splitlines() if line.strip()]
+    if not lines:
+        return []
+
+    # 이름 자체만으로 가수임을 단정하기 어려운 경우를 보완하는 흔한 아티스트 목록.
+    known_artists = [
+        "임영웅", "장윤정", "송가인", "박서진", "영탁", "이찬원", "김호중", "나훈아", "조용필",
+        "싸이", "아이유", "성시경", "이무진", "이승윤", "윤하", "백지영", "김연자", "홍진영",
+        "김희재", "정동원", "에일리", "거미", "다비치", "노라조", "코요태", "김범수", "박정현",
+        "장민호", "박군", "김다현", "김태연", "이찬원", "진성", "박상철", "김용임", "설운도",
+        "BTS", "방탄소년단", "블랙핑크", "BLACKPINK", "세븐틴", "SEVENTEEN", "아이브", "IVE",
+        "에스파", "aespa", "뉴진스", "NewJeans", "르세라핌", "LE SSERAFIM", "엔믹스", "NMIXX",
+        "레드벨벳", "Red Velvet", "트와이스", "TWICE", "엑소", "EXO", "빅뱅", "BIGBANG",
+        "잔나비", "멜로망스", "10CM", "십센치", "폴킴", "박재정", "케이윌", "이승철",
+        "김장훈", "김태우", "바다", "채연", "현숙", "김수찬", "안성훈", "나태주"
+    ]
+    found = []
+    # 초청 가수/출연진/라인업 표식 주변의 같은 줄과 다음 몇 줄을 우선 조사합니다.
+    label_re = re.compile(
+        r"초청\s*가수|가수\s*초청|출연진|출연\s*가수|아티스트|라인업|line[ -]?up|performers?|"
+        r"special\s*guest|guest\s*artist|공연\s*출연",
+        re.I
+    )
+    for i, line in enumerate(lines):
+        if label_re.search(line):
+            tail = re.sub(label_re, " ", line)
+            zone = [tail] + lines[i + 1:i + 5]
+            for item in zone:
+                if re.search(r"장소|일시|기간|예매|문의|주최|주관|신청|접수|입장료|참가비|주소|http|www\.", item, re.I):
+                    break
+                if re.search(r"20\d{2}|\d{1,2}[./]\d{1,2}", item):
+                    continue
+                for artist in known_artists:
+                    if re.search(re.escape(artist), item, re.I):
+                        if artist not in found:
+                            found.append(artist)
+                # 라인업 라벨 바로 뒤에 여러 이름이 나열되면 구분된 이름도 보존.
+                if len(item) <= 65 and not re.search(r"페스티벌|축제|공연|콘서트|행사|라인업|출연진", item, re.I):
+                    parts = re.split(r"\s*(?:,|，|/|·|ㆍ|&|＆|\+|\s{2,})\s*", item)
+                    for part in parts:
+                        part = part.strip(" .:：-")
+                        if 2 <= len(part) <= 18 and re.search(r"[가-힣A-Za-z]", part):
+                            if not re.search(r"예매|티켓|장소|문의|일시|기간|주최|주관|무료|입장", part, re.I) and part not in found:
+                                # 표식 바로 아래의 이름형 텍스트만 후보로 추가
+                                if re.search(r"[가-힣]{2,5}|[A-Z][A-Za-z0-9& ]{1,18}", part):
+                                    found.append(part)
+
+    # 라인업 라벨이 없어도 공연/축제 문맥에 있는 알려진 아티스트는 후보로 추가합니다.
+    performance_context = bool(re.search(r"공연|콘서트|가수|출연|라인업|페스티벌|축제|LIVE|라이브|버스킹", text, re.I))
+    if performance_context:
+        for artist in known_artists:
+            if re.search(re.escape(artist), text, re.I) and artist not in found:
+                found.append(artist)
+
+    # 날짜·장소·예매 문구가 우연히 포함되지 않도록 중복을 제거합니다.
+    return found[:12]
+
+
 def extract_location(text):
-    """라벨뿐 아니라 장소명 자체, 주소, 개최 문맥을 함께 살펴 장소를 추정합니다."""
+    """장소 라벨과 시설명은 우선하고, 예매처·티켓 사이트는 장소에서 제외합니다."""
     text = clean_extracted_lines(text or "")
     lines = [re.sub(r"\s+", " ", line).strip(" \t:：|-") for line in text.splitlines() if line.strip()]
     if not lines:
         return ""
 
-    # 1) 장소 라벨이 명시된 경우 가장 우선합니다.
     label_re = re.compile(r"^(?:장소|행사장소|공연장|개최장소|장소안내|venue|location)\s*[:：|]?\s*(.*)$", re.I)
     for i, line in enumerate(lines):
         m = label_re.match(line)
         if not m:
             continue
         value = m.group(1).strip(" :：|-|")
-        if value and not re.match(r"^(?:확인 필요|미정|추후 공지|일시|날짜|시간)$", value, re.I):
+        if value and not is_ticketing_text(value) and not is_non_location_line(value):
             return value
-        # 라벨과 장소명이 다른 줄에 인식된 경우
         for nxt in lines[i + 1:i + 3]:
-            if not re.match(r"^(?:일시|날짜|시간|참가|참여|주최|주관|문의|신청|접수|마감|기간|프로그램)\b", nxt, re.I):
+            if is_ticketing_text(nxt):
+                continue
+            if not re.match(r"^(?:일시|날짜|시간|참가|참여|주최|주관|문의|신청|접수|마감|기간|프로그램|예매|티켓)\b", nxt, re.I):
                 if not is_non_location_line(nxt):
                     return nxt.strip(" :：|-|")
 
-    # 2) '킨텍스에서 개최', 'OO에서 진행됩니다'처럼 문장으로 쓰인 장소
+    # 개최 문맥이 있는 시설명
     for line in lines:
-        if is_non_location_line(line):
+        if is_non_location_line(line) or is_ticketing_text(line):
             continue
         place_pattern = r"([가-힣A-Za-z0-9· &＆.()（）-]{2,70}?(?:가족쉼터|쉼터|몽골문화촌|문화촌|전시장|전시관|컨벤션센터|컨벤션홀|문화회관|문화관|아트센터|예술회관|체육관|운동장|야외광장|광장|공원|캠퍼스|대학|학교|플라자|전시실|공연장|콘서트홀|센터|갤러리|경기장|역|빌딩|타워))"
         place_matches = list(re.finditer(place_pattern, line, re.I))
@@ -1042,26 +1150,22 @@ def extract_location(text):
             suffix = line[place_match.end():]
             if re.match(r"\s*(?:에서|으로|에\s*위치|에서\s*개최|에서\s*진행)", suffix):
                 candidate = place_match.group(1).strip(" ,.:：|-|")
-                # 문장 앞의 설명을 제거하고 장소명에 가까운 구절만 반환
                 candidate = re.split(r"(?:이번\s*행사는?|행사는?|장소는?|개최지는?)\s*", candidate)[-1].strip()
-                if candidate:
+                if candidate and not is_ticketing_text(candidate):
                     return candidate
 
-    # 3) 주소처럼 보이는 줄은 장소 후보로 사용합니다.
     address_patterns = [
         r"(?:대한민국\s*)?(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[가-힣\s0-9-]{2,}(?:로|길|대로)\s*\d*[가-힣0-9-]*",
         r"[가-힣0-9]+(?:시|군|구)\s*[가-힣0-9]+(?:읍|면|동|리)\s*[가-힣0-9-]*(?:로|길|대로)\s*\d*",
         r"\b\d{1,5}\s+[A-Za-z][A-Za-z .'-]+(?:Street|Road|Ave|Avenue|Blvd)\b",
     ]
     for line in lines:
-        if not is_non_location_line(line):
+        if not is_non_location_line(line) and not is_ticketing_text(line):
             for pattern in address_patterns:
                 m = re.search(pattern, line, re.I)
                 if m:
                     return m.group(0).strip()
 
-    # 4) 장소 라벨이 없어도 장소명에서 자주 쓰이는 시설·공간 표현을 찾아냅니다.
-    # '킨텍스 제2전시장 야외광장'처럼 시설명이 한 줄에만 있는 경우도 포함합니다.
     venue_terms = [
         "킨텍스", "전시장", "전시관", "야외광장", "광장", "컨벤션센터", "컨벤션홀",
         "가족쉼터", "쉼터", "몽골문화촌", "문화촌", "문화회관", "문화관", "아트센터", "예술회관", "공연장", "콘서트홀", "체육관",
@@ -1073,36 +1177,31 @@ def extract_location(text):
     ]
     candidates = []
     for i, line in enumerate(lines):
-        if is_non_location_line(line):
+        if is_non_location_line(line) or is_ticketing_text(line):
             continue
-        lower = line.lower()
-        hits = sum(1 for term in venue_terms if term.lower() in lower)
+        hits = sum(1 for term in venue_terms if term.lower() in line.lower())
         if hits:
-            # 너무 긴 홍보 문장은 피하고, 장소명이 포함된 구절을 우선합니다.
             candidate = line.strip(" ,.:：|-|")
             candidate = re.sub(r"^(?:위치|주소)\s*[:：]?\s*", "", candidate, flags=re.I)
             if len(candidate) <= 90:
                 candidates.append((hits, len(candidate), i, candidate))
     if candidates:
-        # 장소 단서가 많은 줄을 우선하고, 동점이면 짧고 구체적인 줄을 선택
         candidates.sort(key=lambda x: (-x[0], x[1], x[2]))
         return candidates[0][3]
 
-    # 5) 위치/개최 문맥 바로 옆에 있는 짧은 독립 줄도 후보로 검토합니다.
     for i, line in enumerate(lines):
         if re.search(r"(?:위치|주소|오시는\s*길|개최\s*장소|행사\s*장소|장소\s*안내)", line, re.I):
             for nxt in lines[i:i + 3]:
-                if not is_non_location_line(nxt) and 2 <= len(nxt) <= 70:
+                if not is_ticketing_text(nxt) and not is_non_location_line(nxt) and 2 <= len(nxt) <= 70:
                     return nxt.strip(" ,.:：|-|")
     return ""
-
 
 def is_non_location_line(line):
     """장소 후보 탐색 시 행사명·일정·홍보 문구 등을 걸러냅니다."""
     line = (line or "").strip()
     if not line or len(line) < 2:
         return True
-    if re.search(r"(?:주최|주관|문의|신청|접수|참가비|입장료|참가\s*대상|참여\s*방법|초청\s*가수|출연진|일시|행사\s*날짜|기간|마감|http|www\.)", line, re.I):
+    if is_ticketing_text(line) or re.search(r"(?:주최|주관|문의|신청|접수|참가비|입장료|참가\s*대상|참여\s*방법|초청\s*가수|출연진|일시|행사\s*날짜|기간|마감|http|www\.)", line, re.I):
         return True
     if re.search(r"(?:20\d{2}\s*[./년-]\s*\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}[:.]\d{2})", line):
         return True
@@ -1163,8 +1262,15 @@ def extract_special_info(text):
     ]
     for label, patterns in groups:
         values = _extract_labeled_values(text, patterns)
+        if "초청 가수" in label:
+            singers = extract_singer_names(text)
+            values = singers + values
+            values = list(dict.fromkeys(v for v in values if v and not is_ticketing_text(v)))
         # 항목이 포스터에 없으면 '정보 확인 필요' 대신 '-'로 표시합니다.
-        result.append({"label": label, "value": " / ".join(values[:3]) if values else "-"})
+        result.append({"label": label, "value": " / ".join(values[:12]) if values else "-"})
+
+    ticket_info = extract_ticket_info(text)
+    result.append({"label": "🎟️ 예매처", "value": ticket_info or "-"})
     # 프로그램 정보는 라벨이 없더라도 포스터에 명시된 활동 키워드를 모아 표시합니다.
     program_patterns = [r"주요\s*프로그램", r"프로그램", r"공연\s*내용", r"programs?"]
     program_values = _extract_labeled_values(text, program_patterns)
@@ -1242,7 +1348,7 @@ def extract_title(text):
 
     excluded_words = [
         "일시", "기간", "일정", "장소", "문의", "주최", "주관", "신청", "접수",
-        "마감", "등록", "주소", "홈페이지", "http", "www.", "참가비", "입장료",
+        "마감", "등록", "주소", "홈페이지", "http", "www.", "참가비", "입장료", "예매", "티켓", "인터파크", "멜론티켓", "티켓링크",
         "문의처", "참가 대상", "참여 방법", "참여방법", "신청 방법",
         "venue", "location", "organizer", "hosted by", "presented by", "date", "time", "admission", "age limit", "lineup", "line-up", "notice", "please note"
     ]
@@ -1289,7 +1395,7 @@ def extract_title(text):
 
     # 한 줄 제목 후보
     for i, line in enumerate(cleaned):
-        if not line or is_metadata(line) or not 3 <= len(line) <= 65:
+        if not line or is_metadata(line) or is_ticketing_text(line) or not 3 <= len(line) <= 65:
             continue
         score = 0
         if i < 10:
@@ -1303,6 +1409,10 @@ def extract_title(text):
         # 장소 시설명이 제목처럼 점수화되는 것을 방지합니다.
         if any(word in line for word in location_words):
             score -= 12
+        if is_ticketing_text(line):
+            score -= 30
+        if re.search(r"초청\\s*가수|출연진|라인업|아티스트|인터파크|멜론티켓|티켓링크", line, re.I):
+            score -= 35
         if 8 <= len(line) <= 38:
             score += 4
         if len(line) > 45:
@@ -1404,8 +1514,8 @@ def extract_title(text):
     best = clean_line(candidates[0][2])
     best = best or clean_line(lines[0]) or lines[0][:50]
     # 포스터 상단에 행사 연도가 별도 줄로 있을 때 제목에 포함
-    year = re.search(r"(?<!\\d)(20\\d{2})(?!\\d)", text)
-    if year and not re.search(r"\\b20\\d{2}\\b", best):
+    year = re.search(r"(?<!\d)(20\d{2})(?!\d)", text)
+    if year and not re.search(r"\b20\d{2}\b", best):
         if any(word in best.lower() for word in title_type_words):
             best = f"{year.group(1)} {best}"
     return best
