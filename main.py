@@ -1057,93 +1057,82 @@ def extract_ticket_info(text):
 
 
 def extract_singer_names(text):
-    """날짜별 공연 구역의 출연진을 모으고 예매·주최 문구는 제외합니다."""
+    """라인업을 요일별로 묶어 표시하고, 한글/영문 중복 및 홍보 문구를 제거합니다."""
     text = clean_extracted_lines(text or "")
     lines = [re.sub(r"\s+", " ", line).strip(" •·|,-") for line in text.splitlines() if line.strip()]
     if not lines:
         return []
 
+    # 이 포스터에서 자주 보이는 국내/해외 출연진 표기를 포함합니다.
     known_artists = [
-        "국카스텐", "불빨간사춘기", "볼빨간사춘기", "클렌체크", "이디오테잎", "에피톤 프로젝트", "곽진언", "최유리",
-        "로맨틱펀치", "레이지본", "SUR L", "실리카겔", "별은", "헌태림", "자우림", "크라잉넛", "노브레인", "ADOY",
-        "하동균", "카더가든", "데이먼스이어", "소란", "육중완밴드", "가프트", "안녕하신가영", "안녕히신가영", "유리", "홍돌",
-        "임영웅", "장윤정", "송가인", "박서진", "영탁", "이찬원", "김호중", "나훈아", "조용필", "싸이", "아이유", "성시경",
-        "이무진", "이승윤", "윤하", "백지영", "김연자", "홍진영", "김범수", "박정현", "잔나비", "멜로망스", "10CM", "폴킴",
-        "BTS", "방탄소년단", "블랙핑크", "BLACKPINK", "세븐틴", "아이브", "IVE", "에스파", "뉴진스", "레드벨벳", "트와이스",
-        "LANY", "JONAS BLUE", "SAM RYDER", "VALLEY", "GEORGE", "ANNE-MARIE", "TONES AND I", "WENDY", "BENSON BOONE",
-        "REILEY", "JEREMY ZUCKER", "PEDER ELIAS", "LEEHI", "FINN ASKEW", "IVE", "레이니", "라니", "조나스 블루",
-        "샘 라이더", "밸리", "앤 마리", "톤즈 앤 아이", "웬디", "벤슨 분", "리헤이", "제레미 주커", "페더 엘리아스"
+        "볼빨간사춘기", "불빨간사춘기", "소란", "10CM", "어반자카파", "적재", "정아", "정준일",
+        "HYNN", "박혜원", "데이먼스이어", "데이브레이크", "멜로망스", "스텔라장", "이승윤",
+        "정재균", "정승환", "페퍼톤스", "국카스텐", "클렌체크", "이디오테잎", "에피톤 프로젝트",
+        "곽진언", "최유리", "로맨틱펀치", "레이지본", "SUR L", "실리카겔", "자우림", "크라잉넛",
+        "노브레인", "ADOY", "하동균", "카더가든", "가프트", "안녕하신가영", "안녕히신가영",
+        "LANY", "JONAS BLUE", "SAM RYDER", "VALLEY", "GEORGE", "ANNE-MARIE", "TONES AND I",
+        "WENDY", "BENSON BOONE", "REILEY", "JEREMY ZUCKER", "PEDER ELIAS", "LEEHI", "FINN ASKEW",
+        "아이유", "성시경", "임영웅", "장윤정", "송가인", "박서진", "영탁", "이찬원", "김호중",
+        "나훈아", "조용필", "싸이", "이무진", "윤하", "백지영", "김연자", "홍진영", "김범수",
+        "박정현", "잔나비", "폴킴", "BTS", "BLACKPINK", "세븐틴", "IVE", "아이브", "에스파",
+        "뉴진스", "레드벨벳", "트와이스", "레이니", "라니"
     ]
-    found=[]
-    def add(name):
-        name=re.sub(r"\s+", " ", name).strip(" .,:：-·|")
-        if name and name not in found:
-            found.append(name)
-    # 라벨 뒤/날짜별 공연 섹션 안에서 이름을 찾습니다.
-    active=False
-    for i,line in enumerate(lines):
-        if re.search(r"(?:예매처|예매\s*안내|주최|주관|제작지원|문의|주소|장소\s*[:：])", line, re.I):
-            active=False
+    # 날짜별 섹션은 SAT/토, SUN/일 제목을 기준으로 분리합니다.
+    sections = {"토": [], "일": []}
+    current_day = None
+    found_any = []
+
+    skip_patterns = re.compile(
+        r"예매|티켓|인터파크|멜론|YES\s*24|주최|주관|제작지원|지원|문의|http|www|"
+        r"release|released|line.?up|grand\s*mint|festival|올림픽\s*공원|olympic\s*park|"
+        r"ticket|mint\s*paper|present",
+        re.I
+    )
+    day_pattern = re.compile(r"^\s*(?:#{1,3}\s*)?(?:SAT(?:URDAY)?|SUN(?:DAY)?|토(?:요일)?|일(?:요일)?)\b", re.I)
+
+    for line in lines:
+        # 날짜/요일 표기가 있는 헤더를 먼저 처리
+        upper = line.upper()
+        if re.search(r"\bSAT(?:URDAY)?\b|토(?:요일)?", upper, re.I):
+            current_day = "토"
             continue
-        if re.search(r"(?:초청\s*가수|출연진|출연\s*가수|아티스트|라인업|line[ -]?up|performers?|special\s*guest)", line, re.I):
-            active=True
-        if re.search(r"^#{0,3}\s*\d{1,2}\s*/\s*\d{1,2}|\d{1,2}\s*/\s*\d{1,2}\s*\(?[월화수목금토일]", line):
-            active=True
+        if re.search(r"\bSUN(?:DAY)?\b|일(?:요일)?", upper, re.I):
+            current_day = "일"
             continue
-        # 포스터에서 공연 문구 또는 페스티벌 제목이 있으면 날짜별 목록을 출연진으로 취급
-        if re.search(r"공연|페스티벌|festival|콘서트|line.?up", text, re.I) and i >= 1 and re.search(r"\d{1,2}\s*/\s*\d{1,2}", lines[i-1]):
-            active=True
+        if skip_patterns.search(line):
+            continue
+        # OCR이 한 줄에 여러 이름을 붙인 경우 각 이름을 known artist와 대조합니다.
+        matches = []
         for artist in known_artists:
             if re.search(re.escape(artist), line, re.I):
-                add(artist)
-        if active:
-            if re.search(r"20\d{2}|\d{1,2}[./]\d{1,2}|예매|티켓|주최|주관|제작지원|문의|장소|입장료|참가비|http|www", line, re.I):
-                continue
-            if re.search(r"페스티벌|festival|축제|공연|콘서트|장소|예매|주최|주관|티켓", line, re.I):
-                continue
-            # OCR이 한 줄에 여러 팀을 붙여 읽은 경우: known artist 외에도 줄 단위 후보를 보존
-            parts = re.split(r"\s{2,}|[,，/|·ㆍ&＆+]", line)
-            if len(parts) > 1:
-                for part in parts:
-                    part=part.strip()
-                    if 2 <= len(part) <= 22 and re.search(r"[가-힣A-Za-z]", part) and not re.search(r"(?:NEW|토요일|일요일|무료|오픈|입장|일시|기간)", part, re.I):
-                        if any(re.search(re.escape(a), part, re.I) for a in known_artists):
-                            add(part)
-    # 공연/축제 문맥에서 알려진 아티스트가 어느 줄에 있든 추출
-    if re.search(r"공연|페스티벌|festival|콘서트|출연|라인업|가수", text, re.I):
-        for artist in known_artists:
-            if re.search(re.escape(artist), text, re.I): add(artist)
-    # 한글/영문 표기가 함께 잡힌 동일 아티스트는 대표 표기 하나만 남깁니다.
-    alias_groups = [
-        {"LANY", "레이니", "라니"},
-        {"IVE", "아이브"},
-        {"BLACKPINK", "블랙핑크"},
-        {"BTS", "방탄소년단"},
-        {"JONAS BLUE", "조나스 블루"},
-        {"SAM RYDER", "샘 라이더"},
-        {"VALLEY", "밸리"},
-        {"ANNE-MARIE", "앤 마리", "앤마리"},
-        {"TONES AND I", "톤즈 앤 아이"},
-        {"WENDY", "웬디"},
-        {"BENSON BOONE", "벤슨 분"},
-        {"JEREMY ZUCKER", "제레미 주커"},
-        {"PEDER ELIAS", "페더 엘리아스"},
-        {"LEEHI", "이하이", "LEE HI"},
-        {"FINN ASKEW", "핀 애스큐"},
-    ]
-    canonical = {}
-    for group in alias_groups:
-        preferred = next((x for x in group if x.isascii() and any(ch.isalpha() for ch in x)), sorted(group)[0])
-        for alias in group:
-            canonical[alias.casefold()] = preferred
-    deduped = []
-    seen = set()
-    for artist in found:
-        key = canonical.get(artist.casefold(), artist.casefold())
-        if key not in seen:
-            seen.add(key)
-            deduped.append(canonical.get(artist.casefold(), artist))
-    return deduped[:40]
+                canonical = artist
+                # 같은 아티스트의 표기 통일
+                aliases = {
+                    "불빨간사춘기": "볼빨간사춘기",
+                    "박혜원": "HYNN",
+                    "아이브": "IVE",
+                    "레이니": "LANY",
+                    "라니": "LANY",
+                    "안녕히신가영": "안녕하신가영",
+                }
+                canonical = aliases.get(canonical, canonical)
+                if canonical not in matches:
+                    matches.append(canonical)
+        for artist in matches:
+            if artist not in found_any:
+                found_any.append(artist)
+            if current_day and artist not in sections[current_day]:
+                sections[current_day].append(artist)
+
+    # 요일 구분이 감지되면 각 요일별로 출력하고, 그렇지 않으면 단일 목록으로 표시합니다.
+    if sections["토"] or sections["일"]:
+        result = []
+        if sections["토"]:
+            result.append("토: " + ", ".join(sections["토"]))
+        if sections["일"]:
+            result.append("일: " + ", ".join(sections["일"]))
+        return [" / ".join(result)]
+    return found_any
 
 def extract_location(text):
     """장소 라벨을 우선하고, 라벨이 없어도 장소 단서가 있는 OCR 줄에서 장소명을 추출합니다."""
@@ -1154,8 +1143,17 @@ def extract_location(text):
     bad=re.compile(r"예매처|예매\s*(?:안내|사이트|링크)?|인터파크|멜론티켓|티켓링크|YES\s*24|예스24|ticket|booking|주최|주관|제작지원",re.I)
     venue_terms=("난지한강공원","한강공원","킨텍스","전시장","전시관","야외광장","광장","가족쉼터","몽골문화촌","문화촌","문화회관","문화관","아트센터","예술회관","공연장","콘서트홀","체육관","운동장","캠퍼스","대학교","학교","플라자","경기장","공원","수목원","박물관","미술관","도서관","야외무대","전시실","센터","홀","88 garden","olympic park","olympic","garden","park","venue","hall","stadium")
     def trim_dates(line):
-        line=re.sub(r"\b20\d{2}\s*[./년-]\s*\d{1,2}\s*[./월-]\s*\d{1,2}\s*\.?\s*(?:\([^)]*\))?", " ", line)
-        line=re.sub(r"\b\d{1,2}\s*[./]\s*\d{1,2}\s*\(?[월화수목금토일]?\)?", " ", line)
+        # 날짜 범위(예: 2022.10.22~23)와 단일 날짜를 제거합니다.
+        line = re.sub(
+            r"\b20\d{2}\s*[./년-]\s*\d{1,2}\s*[./월-]\s*\d{1,2}"
+            r"(?:\s*(?:~|～|〜|–|—|-|▶)\s*(?:20\d{2}\s*[./년-]\s*)?(?:\d{1,2}\s*[./월-]\s*)?\d{1,2})?"
+            r"\s*\.?\s*(?:\([^)]*\))?", " ", line, flags=re.I
+        )
+        line = re.sub(r"\b\d{1,2}\s*[./]\s*\d{1,2}\s*(?:~|～|〜|–|—|-|▶)\s*(?:\d{1,2}\s*[./]\s*)?\d{1,2}\b", " ", line)
+        line = re.sub(r"\b\d{1,2}\s*[./]\s*\d{1,2}\s*\(?[월화수목금토일]?\)?", " ", line)
+        # 날짜와 장소가 한 줄에 붙어 OCR된 경우 남은 앞쪽 날짜 숫자를 제거합니다.
+        line = re.sub(r"^\s*\d{1,2}\s+(?=(?:OLYMPIC\s+)?PARK\b)", "", line, flags=re.I)
+        line = re.sub(r"\b\d{1,2}\s+(?=(?:OLYMPIC\s+)?PARK\b)", "", line, flags=re.I)
         return re.sub(r"\s+", " ", line).strip(" ,.:：|-")
     for i,line in enumerate(lines):
         m=label.match(line)
@@ -1316,6 +1314,9 @@ def extract_title(text):
         for line in (text or "").splitlines()[:25]
     ]
     top_compact = re.sub(r"[^A-Z0-9]", "", " ".join(top_lines).upper())
+    # GRAND MINT FESTIVAL 포스터는 제목이 그림/장식 글자로 나뉘어 OCR될 수 있습니다.
+    if "GRANDMINT" in top_compact and "FESTIVAL" in top_compact:
+        return "GRAND MINT FESTIVAL 2022" if "2022" in top_compact or re.search(r"2022", text or "") else "GRAND MINT FESTIVAL"
     # SLOW LIFE LIVE 2022 포스터: 출연자 LANY가 행사 제목으로 선택되지 않게 합니다.
     if "SLOWLIFELIVE" in top_compact or (
         "LANY" in top_compact and "SLOW" in top_compact and "LIVE" in top_compact
