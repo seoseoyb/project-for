@@ -55,7 +55,7 @@ st.markdown(
     }
 
     .main-title-wrap .main-title {
-        font-family: "Jua", "Gowun Dodum", sans-serif;
+        font-family: "Jua", "Gowun Dodum", sans-serif
         font-size: clamp(32px, 4vw, 48px);
         line-height: 1.25;
         color: #17171b;
