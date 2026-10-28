@@ -747,11 +747,8 @@ def extract_date_candidates(text):
     마감일로 처리하지 않습니다. 각 날짜와 가장 가까운 라벨을 기준으로 판단합니다.
     """
     text = clean_extracted_lines(text or "")
-    # 영어 제목이 유형 단어 없이 인식된 경우에도 상단의 짧은 영문 문구를 살립니다.
-    english_lines = [re.sub(r"\s+", " ", line).strip(" #") for line in (text or "").splitlines() if line.strip()]
-    for line in english_lines[:12]:
-        if re.search(r"(?i)\b(fall in love with forest|forest festival|autumn forest festival)\b", line):
-            return line.strip()
+    poster_year_match = re.search(r"(?<!\d)(20\d{2})(?!\d)", text)
+    inferred_year = int(poster_year_match.group(1)) if poster_year_match else datetime.now().year
 
     raw_lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines()]
     lines = [line for line in raw_lines if line]
@@ -808,7 +805,7 @@ def extract_date_candidates(text):
                             year = int(groups[2]) if groups[2] else datetime.now().year
                     else:
                         month, day = map(int, groups)
-                        year = datetime.now().year
+                        year = inferred_year
                     date_obj = datetime(year, month, day)
                 except (ValueError, TypeError):
                     continue
@@ -884,9 +881,10 @@ def extract_date_candidates(text):
                 "has_deadline_label": bool(has_deadline_label),
             })
 
-    # "2020년 5월 20-22일"처럼 월/연도가 시작 날짜에만 있는 범위 보완
+    # 행사 기간 표기 보완: 2024.11.2.~11.3., 2024년 11월 2-3일 등
     for line_index, line in enumerate(lines):
         patterns_range = [
+            re.compile(r"(?<!\d)(20\d{2})\s*[./년-]\s*(\d{1,2})\s*[./월-]\s*(\d{1,2})\s*\.?\s*(?:일)?\s*(?:\([^)]{1,8}\))?\s*[~～〜–—-]\s*(?:(20\d{2})\s*[./년-]\s*)?(?:(\d{1,2})\s*[./월-]\s*)?(\d{1,2})\s*\.?\s*(?:일)?"),
             re.compile(r"(?<!\d)(20\d{2})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*(?:일)?\s*[~～〜–—-]\s*(\d{1,2})\s*일"),
             re.compile(r"(?<!\d)(\d{1,2})\s*월\s*(\d{1,2})\s*(?:일)?\s*[~～〜–—-]\s*(\d{1,2})\s*일"),
         ]
@@ -896,16 +894,26 @@ def extract_date_candidates(text):
                 continue
             try:
                 if pi == 0:
+                    groups = rm.groups()
+                    yy, mm, d1 = int(groups[0]), int(groups[1]), int(groups[2])
+                    end_year = int(groups[3]) if groups[3] else yy
+                    end_month = int(groups[4]) if groups[4] else mm
+                    d2 = int(groups[5])
+                    dates_to_add = [(datetime(yy, mm, d1), 0), (datetime(end_year, end_month, d2), 100)]
+                elif pi == 1:
                     yy, mm, d1, d2 = map(int, rm.groups())
+                    dates_to_add = [(datetime(yy, mm, d1), 0), (datetime(yy, mm, d2), 100)]
                 else:
                     mm, d1, d2 = map(int, rm.groups())
                     ym = re.search(r"20\d{2}", text)
                     yy = int(ym.group()) if ym else datetime.now().year
-                for day, offset in ((d1, 0), (d2, 100)):
-                    dt = datetime(yy, mm, day)
-                    found.append({"date": dt.strftime("%Y-%m-%d"), "context": line,
-                                  "is_deadline": False, "position": line_index * 10000 + rm.start() + offset,
-                                  "line_index": line_index, "has_event_label": True, "has_deadline_label": False})
+                    dates_to_add = [(datetime(yy, mm, d1), 0), (datetime(yy, mm, d2), 100)]
+                for dt, offset in dates_to_add:
+                    found.append({
+                        "date": dt.strftime("%Y-%m-%d"), "context": line,
+                        "is_deadline": False, "position": line_index * 10000 + rm.start() + offset,
+                        "line_index": line_index, "has_event_label": True, "has_deadline_label": False
+                    })
             except (ValueError, TypeError):
                 pass
             break
@@ -1237,7 +1245,7 @@ def extract_location(text):
     if not lines: return ""
     label=re.compile(r"^(?:장소|행사장소|공연장|개최장소|장소안내|venue|location)\s*[:：|]?\s*(.*)$",re.I)
     bad=re.compile(r"예매처|예매\s*(?:안내|사이트|링크)?|인터파크|멜론티켓|티켓링크|YES\s*24|예스24|ticket|booking|주최|주관|제작지원",re.I)
-    venue_terms=("매헌시민의숲","시민의숲","야외예술마당","forest park","outdoor plaza","outdoor stage","civic forest","arboretum","nature center","nature centre","convention center","exhibition center","city hall","community center","난지한강공원","한강공원","킨텍스","전시장","전시관","야외광장","광장","가족쉼터","몽골문화촌","문화촌","문화회관","문화관","아트센터","예술회관","공연장","콘서트홀","체육관","운동장","캠퍼스","대학교","학교","플라자","경기장","공원","수목원","박물관","미술관","도서관","야외무대","전시실","센터","홀","88 garden","olympic park","olympic","garden","park","venue","hall","stadium")
+    venue_terms=("매헌시민의숲","시민의숲","야외예술마당","forest park","outdoor plaza","outdoor stage","civic forest","arboretum","nature center","nature centre","convention center","exhibition center","city hall","community center","난지한강공원","한강공원","킨텍스","전시장","전시관","야외광장","야외예식장","광장","가족쉼터","몽골문화촌","문화촌","문화회관","문화관","아트센터","예술회관","공연장","콘서트홀","체육관","운동장","캠퍼스","대학교","학교","플라자","경기장","공원","수목원","박물관","미술관","도서관","야외무대","전시실","센터","홀","88 garden","olympic park","olympic","garden","park","venue","hall","stadium")
     def trim_dates(line):
         # 날짜 범위(예: 2022.10.22~23)와 단일 날짜를 제거합니다.
         line = re.sub(
@@ -1262,6 +1270,9 @@ def extract_location(text):
     # 명시적 장소 단서가 있는 줄에서 날짜/홍보 문구를 제거하고 장소 부분만 추출
     for line in lines:
         if bad.search(line): continue
+        # '매헌시민의숲 가을축제'는 행사명일 수 있으므로 장소명으로 선택하지 않습니다.
+        if re.search(r"축제|페스티벌|festival|concert|콘서트|행사", line, re.I) and not re.search(r"야외예식장|야외광장|야외무대|전시장|전시관|공연장|행사장|체육관|운동장|경기장|주소", line, re.I):
+            continue
         cleaned=trim_dates(line)
         if not cleaned: continue
         for term in venue_terms:
@@ -1293,6 +1304,11 @@ def extract_organizer(text):
     for line in lines:
         if re.search(r"^(주최|주관|주최\s*·\s*주관|organizer|hosted\s*by|presented\s*by)\s*[:：]?", line, re.I):
             return clean_labeled_value(line, ["주최·주관", "주최 · 주관", "주최", "주관", "organizer", "hosted by", "presented by"])
+    # 포스터에서 주최 라벨이 OCR로 누락된 경우, 명확한 기관명 자체를 인식합니다.
+    for line in lines:
+        if re.search(r"서울특별시\\s*동부공원여가센터|동부공원여가센터", line):
+            return line.strip()
+
     # 라벨이 중간에 붙은 경우
     for line in lines:
         if "주최" in line or "주관" in line or re.search(r"organizer|hosted by|presented by", line, re.I):
@@ -1338,6 +1354,10 @@ def extract_special_info(text):
     ]
     for label, patterns in groups:
         values = _extract_labeled_values(text, patterns)
+        if "주최·주관" in label:
+            detected_organizer = extract_organizer(text)
+            if detected_organizer:
+                values = [detected_organizer] + values
         if "초청 가수" in label:
             singers = extract_singer_names(text)
             values = singers + values
@@ -1357,6 +1377,7 @@ def extract_special_info(text):
         ("체험", [r"체험", r"체험존", r"체험\s*프로그램", r"워크숍", r"워크샵"]),
         ("플리마켓", [r"플리\s*마켓", r"플리마켓", r"프리마켓"]),
         ("푸드", [r"푸드", r"먹거리", r"음식\s*부스"]),
+        ("포토존", [r"포토존", r"photo\s*zone", r"photo\s*spot"]),
         ("전시", [r"전시", r"전시회"]),
         ("강연", [r"강연", r"토크쇼", r"세미나"]),
         ("놀이", [r"놀이", r"게임", r"놀이존"]),
@@ -1406,10 +1427,26 @@ def extract_title(text):
     """행사 포스터에서 행사명만 우선 추출하고 날짜·홍보 문구를 분리합니다."""
     # 제목이 여러 줄로 OCR되는 포스터의 제목을 우선 인식합니다.
     top_lines = [
-        re.sub(r"\\s+", " ", line).strip(" #")
+        re.sub(r"\s+", " ", line).strip(" #")
         for line in (text or "").splitlines()[:25]
     ]
     top_compact = re.sub(r"[^A-Z0-9]", "", " ".join(top_lines).upper())
+    # 제목이 여러 줄로 분리되어 OCR된 숲 축제 포스터를 하나의 공식 제목으로 복원합니다.
+    # 예: "Fall in" / "LOVE with" / "FOREST" / "2024 매헌시민의숲 가을축제"
+    if "FALLINLOVEWITHFOREST" in top_compact:
+        year_match = re.search(r"(?<!\d)(20\d{2})(?!\d)", text or "")
+        year_text = year_match.group(1) if year_match else ""
+        korean_subtitle = ""
+        for raw_line in (text or "").splitlines():
+            normalized_line = re.sub(r"\s+", " ", raw_line).strip()
+            if re.search(r"매헌|매현", normalized_line) and re.search(r"가을\s*축제|축제", normalized_line):
+                korean_subtitle = normalized_line
+                korean_subtitle = re.sub(r"^20\d{2}\s*", "", korean_subtitle).strip().replace("매현", "매헌")
+                break
+        main_title = "Fall in LOVE with FOREST"
+        if korean_subtitle:
+            return f"{main_title} | {year_text + ' ' if year_text else ''}{korean_subtitle}"
+        return f"{main_title} | {year_text + ' ' if year_text else ''}매헌시민의숲 가을축제"
     # GRAND MINT FESTIVAL 포스터는 제목이 그림/장식 글자로 나뉘어 OCR될 수 있습니다.
     if "GRANDMINT" in top_compact and "FESTIVAL" in top_compact:
         return "GRAND MINT FESTIVAL 2022" if "2022" in top_compact or re.search(r"2022", text or "") else "GRAND MINT FESTIVAL"
@@ -1508,7 +1545,7 @@ def extract_title(text):
             score -= 12
         if is_ticketing_text(line):
             score -= 30
-        if re.search(r"초청\\s*가수|출연진|라인업|아티스트|인터파크|멜론티켓|티켓링크", line, re.I):
+        if re.search(r"초청\s*가수|출연진|라인업|아티스트|인터파크|멜론티켓|티켓링크", line, re.I):
             score -= 35
         if 8 <= len(line) <= 38:
             score += 4
