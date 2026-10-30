@@ -161,6 +161,96 @@ st.markdown(
     .stApp [data-testid="stProgressBar"] > div > div { background: #777 !important; }
     .stApp hr { border-color: rgba(255,255,255,.8) !important; }
     .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stMarkdownContainer"], .stApp [data-testid="stAlert"] { color: #111 !important; }
+
+    /* ICE GLASS: much clearer, colder, almost crystalline translucent surfaces */
+    .main-title-wrap,
+    [data-testid="stFileUploader"],
+    [data-testid="stVerticalBlockBorderWrapper"],
+    .diary-note, .info-item,
+    .stApp [data-testid="stExpander"] details,
+    .stApp [data-testid="stExpander"] summary {
+        background: linear-gradient(132deg,
+            rgba(255,255,255,.25) 0%,
+            rgba(255,255,255,.075) 42%,
+            rgba(255,255,255,.19) 72%,
+            rgba(255,255,255,.055) 100%) !important;
+        -webkit-backdrop-filter: blur(38px) saturate(210%) brightness(1.08) !important;
+        backdrop-filter: blur(38px) saturate(210%) brightness(1.08) !important;
+        border: 1px solid rgba(255,255,255,.88) !important;
+        box-shadow: inset 0 1.5px 0 rgba(255,255,255,.98),
+                    inset 1px 0 0 rgba(255,255,255,.42),
+                    inset 0 -1px 0 rgba(255,255,255,.36),
+                    0 14px 34px rgba(87,101,122,.095),
+                    0 2px 7px rgba(255,255,255,.42) !important;
+    }
+    [data-testid="stFileUploaderDropzone"] {
+        background: rgba(255,255,255,.075) !important;
+        border: 1px dashed rgba(255,255,255,.78) !important;
+        -webkit-backdrop-filter: blur(28px) !important;
+        backdrop-filter: blur(28px) !important;
+    }
+    .diary-note, .info-item {
+        background: linear-gradient(145deg, rgba(255,255,255,.22), rgba(255,255,255,.065) 58%, rgba(255,255,255,.16)) !important;
+        -webkit-backdrop-filter: blur(34px) saturate(220%) !important;
+        backdrop-filter: blur(34px) saturate(220%) !important;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.98),
+                    inset 0 -1px 0 rgba(255,255,255,.38),
+                    0 9px 24px rgba(74,88,108,.075) !important;
+        transform-origin: center;
+        transition: transform .48s cubic-bezier(.2, 1.7, .35, 1),
+                    border-radius .48s ease,
+                    box-shadow .38s ease,
+                    background .38s ease !important;
+        will-change: transform;
+    }
+
+    /* Soft jelly-like response: tiny lift, gentle expansion and rounded shape change */
+    .main-title-wrap,
+    [data-testid="stFileUploader"],
+    [data-testid="stVerticalBlockBorderWrapper"],
+    .stApp [data-testid="stExpander"] details,
+    div.stButton > button,
+    .stDownloadButton > button,
+    [data-testid="stLinkButton"] a {
+        transform-origin: center;
+        transition: transform .52s cubic-bezier(.2, 1.65, .35, 1),
+                    border-radius .45s ease,
+                    box-shadow .4s ease,
+                    filter .4s ease !important;
+    }
+    .main-title-wrap:hover,
+    [data-testid="stFileUploader"]:hover,
+    [data-testid="stVerticalBlockBorderWrapper"]:hover,
+    .diary-note:hover, .info-item:hover,
+    .stApp [data-testid="stExpander"] details:hover {
+        transform: translateY(-3px) scale(1.012);
+        border-radius: 27px !important;
+        box-shadow: inset 0 1.5px 0 rgba(255,255,255,1),
+                    inset 0 0 18px rgba(255,255,255,.34),
+                    0 20px 42px rgba(79,94,116,.14) !important;
+        filter: brightness(1.035);
+    }
+    .diary-note:hover, .info-item:hover {
+        transform: translateY(-3px) scale(1.025);
+        border-radius: 22px !important;
+    }
+    div.stButton > button:hover,
+    .stDownloadButton > button:hover,
+    [data-testid="stLinkButton"] a:hover {
+        transform: translateY(-2px) scale(1.025);
+        border-radius: 24px !important;
+        filter: brightness(1.07);
+    }
+    div.stButton > button:active,
+    .stDownloadButton > button:active,
+    [data-testid="stLinkButton"] a:active {
+        transform: scale(.975) !important;
+        transition-duration: .12s !important;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+
     @media (max-width: 700px) {
         .main-title-wrap { margin: 8px auto 24px; padding: 28px 18px; border-radius: 22px; }
         .main-title-wrap .main-title { font-size: 30px; }
@@ -913,10 +1003,10 @@ def extract_special_info(text):
     """초청 가수/출연진 등 행사 특유의 추가 정보를 추출합니다."""
     result = []
     groups = [
-        ("🎤 초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"가수\s*초청", r"출연진", r"출연\s*가수", r"아티스트", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
-        ("🐾 주최·주관", [r"주최\s*·?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
-        ("🐾 나이 제한", [r"나이\s*제한", r"연령\s*제한", r"관람\s*연령", r"입장\s*연령", r"age(?:\s*limit)?", r"ages?"]),
-        ("🐾 주의 사항", [r"주의\s*사항", r"유의\s*사항", r"안내\s*사항", r"입장\s*안내", r"주의", r"please\s*note", r"important\s*notes?", r"notice", r"warnings?", r"no\s+\w+", r"prohibited"]),
+        ("초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"가수\s*초청", r"출연진", r"출연\s*가수", r"아티스트", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
+        ("주최·주관", [r"주최\s*·?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
+        ("나이 제한", [r"나이\s*제한", r"연령\s*제한", r"관람\s*연령", r"입장\s*연령", r"age(?:\s*limit)?", r"ages?"]),
+        ("주의 사항", [r"주의\s*사항", r"유의\s*사항", r"안내\s*사항", r"입장\s*안내", r"주의", r"please\s*note", r"important\s*notes?", r"notice", r"warnings?", r"no\s+\w+", r"prohibited"]),
     ]
     for label, patterns in groups:
         values = _extract_labeled_values(text, patterns)
@@ -932,7 +1022,7 @@ def extract_special_info(text):
         result.append({"label": label, "value": " / ".join(values[:12]) if values else "-"})
 
     ticket_info = extract_ticket_info(text)
-    result.append({"label": "🎟️ 예매처", "value": ticket_info or "-"})
+    result.append({"label": "예매처", "value": ticket_info or "-"})
     # 프로그램 정보는 라벨이 없더라도 포스터에 명시된 활동 키워드를 모아 표시합니다.
     program_patterns = [r"주요\s*프로그램", r"프로그램", r"공연\s*내용", r"programs?"]
     program_values = _extract_labeled_values(text, program_patterns)
@@ -953,7 +1043,7 @@ def extract_special_info(text):
         program_values.extend(detected)
     program_values = list(dict.fromkeys(v for v in program_values if v and v not in {"-", "정보 확인 필요"}))
     if program_values:
-        result.append({"label": "🎪 체험·공연·즐길거리", "value": " · ".join(program_values[:10])})
+        result.append({"label": "체험·공연·즐길거리", "value": " · ".join(program_values[:10])})
 
     # '공연'이라고 적혀 있지만 가수명이 따로 잡히지 않은 경우 공연 정보를 숨기지 않습니다.
     singer_item = next((item for item in result if "초청 가수" in item["label"]), None)
@@ -966,9 +1056,9 @@ def extract_special_info(text):
 def extract_participation_info(text):
     """참가비·참가대상·참여방법은 핵심 내용과 분리해 보여줍니다."""
     groups = [
-        ("💰 참가비", [r"참가\s*비", r"참여\s*비", r"입장료", r"참가비용"]),
-        ("👥 참가 대상", [r"참가\s*대상", r"참여\s*대상", r"대상"]),
-        ("📝 참여 방법", [r"참여\s*방법", r"참가\s*방법", r"신청\s*방법", r"접수\s*방법", r"신청\s*및\s*접수"]),
+        ("참가비", [r"참가\s*비", r"참여\s*비", r"입장료", r"참가비용"]),
+        ("참가 대상", [r"참가\s*대상", r"참여\s*대상", r"대상"]),
+        ("참여 방법", [r"참여\s*방법", r"참가\s*방법", r"신청\s*방법", r"접수\s*방법", r"신청\s*및\s*접수"]),
     ]
     result=[]
     for label, patterns in groups:
