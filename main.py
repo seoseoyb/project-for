@@ -5,6 +5,7 @@ import urllib.parse
 import json
 import re
 import io
+import html
 from datetime import datetime, timedelta
 
 # =========================================================
@@ -12,7 +13,7 @@ from datetime import datetime, timedelta
 # =========================================================
 st.set_page_config(
     page_title="행사 포스터 일정 자동 등록",
-    page_icon="🐈‍⬛",
+    page_icon=None,
     layout="wide"
 )
 
@@ -20,232 +21,152 @@ st.markdown(
     """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap');
-
-    /* Clean white app surface */
-    :root {
-        color-scheme: light;
-    }
+    :root { color-scheme: light; }
     html, body, .stApp, [data-testid="stAppViewContainer"],
     [data-testid="stMain"], [data-testid="stHeader"] {
-        background: #ffffff !important;
+        background: #e9ebef !important;
         color: #111111 !important;
     }
+    [data-testid="stHeader"] { background: rgba(233,235,239,.72) !important; }
     .stApp, .stApp * {
         color: #111111;
         font-family: "Gowun Dodum", "Jua", "Malgun Gothic", sans-serif !important;
     }
-    .stApp .material-symbols-outlined,
-    .stApp .material-icons,
-    .stApp [class*="material-symbols"] {
-        font-family: "Material Symbols Outlined" !important;
-    }
+    .stApp .material-symbols-outlined, .stApp .material-icons,
+    .stApp [class*="material-symbols"] { font-family: "Material Symbols Outlined" !important; }
     h1, h2, h3, h4, h5, h6 {
         color: #111111 !important;
         font-family: "Jua", "Gowun Dodum", sans-serif !important;
         font-weight: 400 !important;
-        letter-spacing: -0.025em;
+        letter-spacing: -.025em;
     }
-    p, label, span, div, small, input, textarea, button {
-        color: #111111;
-    }
+    p, label, span, div, small, input, textarea, button { color: #111111; }
     [data-testid="stMain"] > div {
-        max-width: 1120px;
-        margin: 0 auto !important;
+        max-width: 1120px; margin: 0 auto !important;
         padding: 2rem 1.5rem 3rem !important;
-        background: #ffffff !important;
+        background: transparent !important;
     }
 
-    /* Frosted-glass title panel */
+    /* Stronger frosted glass: cool grey canvas + translucent white layers */
     .main-title-wrap {
-        position: relative;
-        max-width: 980px;
-        margin: 18px auto 34px;
-        padding: 36px 28px 34px;
-        text-align: center;
-        border: 1px solid rgba(255,255,255,.92);
+        position: relative; overflow: hidden; isolation: isolate;
+        max-width: 980px; margin: 18px auto 34px; padding: 38px 28px 36px;
+        text-align: center; border: 1px solid rgba(255,255,255,.96);
         border-radius: 28px;
-        background: rgba(255,255,255,.58);
-        -webkit-backdrop-filter: blur(18px) saturate(145%);
-        backdrop-filter: blur(18px) saturate(145%);
-        box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.98),
-            inset 0 -1px 0 rgba(20,20,20,.035),
-            0 12px 34px rgba(0,0,0,.055);
-        isolation: isolate;
+        background: linear-gradient(135deg, rgba(255,255,255,.66), rgba(255,255,255,.24) 55%, rgba(255,255,255,.46));
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
+        backdrop-filter: blur(28px) saturate(180%);
+        box-shadow: inset 0 1.5px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(255,255,255,.35),
+                    0 18px 42px rgba(72,80,94,.13), 0 3px 10px rgba(72,80,94,.06);
     }
     .main-title-wrap::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        z-index: -1;
-        border-radius: inherit;
-        background: linear-gradient(135deg,
-            rgba(255,255,255,.88) 0%,
-            rgba(255,255,255,.42) 48%,
-            rgba(245,245,245,.24) 100%);
-        pointer-events: none;
+        content: ""; position: absolute; z-index: -1; inset: 1px;
+        border-radius: inherit; pointer-events: none;
+        background: linear-gradient(118deg, rgba(255,255,255,.72) 0%, rgba(255,255,255,.12) 36%, rgba(255,255,255,.42) 68%, rgba(255,255,255,.08) 100%);
+    }
+    .main-title-wrap::after {
+        content: ""; position: absolute; z-index: -1; width: 48%; height: 160%;
+        top: -35%; left: -15%; transform: rotate(24deg);
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,.34), transparent);
+        filter: blur(8px); pointer-events: none;
     }
     .main-title-wrap .main-title {
-        margin: 0;
-        color: #111111 !important;
+        margin: 0; color: #111111 !important;
         font-family: "Jua", "Gowun Dodum", sans-serif !important;
-        font-size: clamp(30px, 4vw, 46px);
-        line-height: 1.3;
-        letter-spacing: -.035em;
-        text-shadow: 0 1px 0 rgba(255,255,255,.9);
+        font-size: clamp(30px, 4vw, 46px); line-height: 1.3;
+        letter-spacing: -.035em; text-shadow: 0 1px 0 rgba(255,255,255,.9);
     }
-    .main-title-wrap .main-subtitle {
-        margin-top: 10px;
-        color: #111111 !important;
-        font-size: 15px;
-    }
+    .main-title-wrap .main-subtitle { margin-top: 10px; color: #333333 !important; font-size: 15px; }
 
-    /* Poster uploader: simple white surface with a fine outline */
     [data-testid="stFileUploader"] {
-        padding: 12px;
-        border: 1px solid #e7e7e7;
-        border-radius: 20px;
-        background: #ffffff !important;
-        box-shadow: 0 5px 18px rgba(0,0,0,.035);
+        padding: 14px; border: 1px solid rgba(255,255,255,.95);
+        border-radius: 22px;
+        background: linear-gradient(145deg, rgba(255,255,255,.62), rgba(255,255,255,.25)) !important;
+        -webkit-backdrop-filter: blur(22px) saturate(170%); backdrop-filter: blur(22px) saturate(170%);
+        box-shadow: inset 0 1px 0 #fff, 0 12px 30px rgba(72,80,94,.10) !important;
     }
     [data-testid="stFileUploaderDropzone"] {
-        background: #ffffff !important;
-        border: 1px dashed #cfcfcf !important;
-        border-radius: 15px !important;
+        background: rgba(255,255,255,.22) !important;
+        border: 1px dashed rgba(125,135,150,.42) !important; border-radius: 16px !important;
     }
     [data-testid="stFileUploader"] button {
-        border: 1px solid #d8d8d8 !important;
-        border-radius: 10px !important;
-        background: rgba(255,255,255,.72) !important;
-        color: #111111 !important;
+        border: 1px solid rgba(255,255,255,.95) !important; border-radius: 12px !important;
+        background: rgba(255,255,255,.56) !important; color: #111 !important;
     }
 
-    /* Matching translucent glass action button */
     div.stButton > button[kind="primary"] {
-        min-height: 58px !important;
-        border: 1px solid rgba(255,255,255,.96) !important;
-        border-radius: 19px !important;
-        background: linear-gradient(135deg,
-            rgba(255,255,255,.88),
-            rgba(242,242,242,.48)) !important;
-        color: #111111 !important;
-        -webkit-backdrop-filter: blur(16px) saturate(145%);
-        backdrop-filter: blur(16px) saturate(145%);
-        box-shadow:
-            inset 0 1px 0 rgba(255,255,255,1),
-            0 7px 22px rgba(0,0,0,.075),
-            0 1px 3px rgba(0,0,0,.04) !important;
-        font-family: "Jua", "Gowun Dodum", sans-serif !important;
-        font-size: 18px !important;
-        transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+        min-height: 58px !important; border: 1px solid rgba(255,255,255,.98) !important;
+        border-radius: 20px !important;
+        background: linear-gradient(135deg, rgba(255,255,255,.78), rgba(255,255,255,.30)) !important;
+        color: #111 !important; -webkit-backdrop-filter: blur(24px) saturate(180%);
+        backdrop-filter: blur(24px) saturate(180%);
+        box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255,255,255,.35),
+                    0 12px 28px rgba(72,80,94,.13) !important;
+        font-family: "Jua", "Gowun Dodum", sans-serif !important; font-size: 18px !important;
+        transition: transform .18s ease, box-shadow .18s ease;
     }
     div.stButton > button[kind="primary"]:hover {
         transform: translateY(-2px);
-        background: rgba(255,255,255,.96) !important;
-        box-shadow:
-            inset 0 1px 0 #ffffff,
-            0 11px 28px rgba(0,0,0,.10) !important;
+        background: linear-gradient(135deg, rgba(255,255,255,.92), rgba(255,255,255,.48)) !important;
+        box-shadow: inset 0 1px 0 #fff, 0 16px 32px rgba(72,80,94,.17) !important;
     }
-    div.stButton > button[kind="primary"]:focus {
-        outline: 2px solid #777777 !important;
-        outline-offset: 3px;
-    }
+    div.stButton > button[kind="primary"]:focus { outline: 2px solid #777 !important; outline-offset: 3px; }
 
-    /* Event cards */
+    /* Main event sheet and all information cards use the same glass material */
     [data-testid="stVerticalBlockBorderWrapper"] {
-        position: relative;
-        margin: 22px 0 28px !important;
-        padding: 24px !important;
-        border: 1px solid #e9e9e9 !important;
-        border-radius: 20px !important;
-        background: #ffffff !important;
-        box-shadow: 0 7px 24px rgba(0,0,0,.045) !important;
+        position: relative; margin: 22px 0 28px !important; padding: 24px !important;
+        border: 1px solid rgba(255,255,255,.96) !important; border-radius: 24px !important;
+        background: linear-gradient(145deg, rgba(255,255,255,.58), rgba(255,255,255,.20)) !important;
+        -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,1), 0 15px 36px rgba(72,80,94,.11) !important;
     }
     [data-testid="stVerticalBlockBorderWrapper"]::before,
-    [data-testid="stVerticalBlockBorderWrapper"]::after {
-        content: none !important;
-        display: none !important;
-    }
+    [data-testid="stVerticalBlockBorderWrapper"]::after { content: none !important; display: none !important; }
     .event-title, .event-display-title {
-        color: #111111 !important;
-        font-family: "Jua", "Gowun Dodum", sans-serif !important;
+        color: #111 !important; font-family: "Jua", "Gowun Dodum", sans-serif !important;
     }
-    .event-display-title {
-        font-size: clamp(28px, 3.2vw, 42px);
-        line-height: 1.2;
-        font-weight: 400;
-        margin: 4px 0 2px;
-        letter-spacing: -.025em;
-    }
-    .event-display-subtitle {
-        color: #111111 !important;
-        font-size: 15px;
-        line-height: 1.45;
-        margin: 0 0 18px 1px;
-    }
+    .event-display-title { font-size: clamp(28px, 3.2vw, 42px); line-height: 1.2; font-weight: 400; margin: 4px 0 2px; letter-spacing: -.025em; }
+    .event-display-subtitle { color: #222 !important; font-size: 15px; line-height: 1.45; margin: 0 0 18px 1px; }
     .diary-note, .info-item {
-        background: #ffffff !important;
-        border: 1px solid #e8e8e8 !important;
-        border-radius: 14px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,.025) !important;
-        padding: 15px 18px !important;
-        color: #111111 !important;
+        background: linear-gradient(145deg, rgba(255,255,255,.66), rgba(255,255,255,.24)) !important;
+        border: 1px solid rgba(255,255,255,.98) !important; border-radius: 17px !important;
+        -webkit-backdrop-filter: blur(20px) saturate(170%); backdrop-filter: blur(20px) saturate(170%);
+        box-shadow: inset 0 1px 0 #fff, 0 8px 20px rgba(72,80,94,.075) !important;
+        padding: 16px 19px !important; color: #111 !important;
     }
     .diary-note::after { display: none !important; }
-    .diary-label, .info-label { color: #111111 !important; }
-    .diary-value, .info-value { color: #111111 !important; }
-    .event-sub-info, .event-description, .keyword-text { color: #111111 !important; }
+    .diary-label, .info-label { color: #222 !important; font-weight: 700 !important; }
+    .diary-value, .info-value { color: #111 !important; }
+    .event-sub-info, .event-description, .keyword-text { color: #111 !important; }
+    .event-info-heading, .extra-info-heading, .info-section-title { font-family: "Jua", "Gowun Dodum", sans-serif !important; font-size: 1.9rem; font-weight: 400; margin: .25rem 0 .8rem; color: #111 !important; letter-spacing: -.03em; }
+    .info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 10px 0 16px; }
+    .info-item { min-width: 0; }
+    .info-label { font-family: "Gowun Dodum", sans-serif !important; font-size: 14px; margin-bottom: 9px; }
+    .info-value { font-size: 15px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 
-    /* Expander and ordinary controls */
+    .stApp [data-testid="stExpander"] details,
     .stApp [data-testid="stExpander"] summary {
-        min-height: 50px !important;
-        padding: 10px 15px !important;
-        border: 1px solid #e7e7e7 !important;
-        border-radius: 13px !important;
-        background: #ffffff !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 12px !important;
+        border: 1px solid rgba(255,255,255,.95) !important; border-radius: 15px !important;
+        background: rgba(255,255,255,.42) !important;
+        -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
     }
-    .stApp [data-testid="stExpander"] summary p {
-        color: #111111 !important;
-        margin: 0 !important;
-        line-height: 1.45 !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-    .stApp [data-testid="stExpander"] summary span[class*="material"] {
-        flex: 0 0 24px !important;
-        width: 24px !important;
-        min-width: 24px !important;
-        font-family: "Material Symbols Outlined" !important;
-    }
+    .stApp [data-testid="stExpander"] summary { min-height: 50px !important; padding: 10px 15px !important; display: flex !important; align-items: center !important; gap: 12px !important; }
+    .stApp [data-testid="stExpander"] summary p { color: #111 !important; margin: 0 !important; line-height: 1.45 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+    .stApp [data-testid="stExpander"] summary span[class*="material"] { flex: 0 0 24px !important; width: 24px !important; min-width: 24px !important; font-family: "Material Symbols Outlined" !important; }
     .stTextInput input, .stTextArea textarea, .stDateInput input, .stTimeInput input,
-    .stSelectbox [data-baseweb="select"] > div,
-    .stMultiSelect [data-baseweb="select"] > div {
-        color: #111111 !important;
-        background: #ffffff !important;
-        border: 1px solid #dedede !important;
-        border-radius: 10px !important;
+    .stSelectbox [data-baseweb="select"] > div, .stMultiSelect [data-baseweb="select"] > div {
+        color: #111 !important; background: rgba(255,255,255,.62) !important;
+        border: 1px solid rgba(255,255,255,.96) !important; border-radius: 11px !important;
     }
-    .stApp [data-testid="stProgressBar"] > div > div { background: #777777 !important; }
-    .stApp hr { border-color: #ededed !important; }
-    .stApp [data-testid="stCaptionContainer"],
-    .stApp [data-testid="stMarkdownContainer"],
-    .stApp [data-testid="stAlert"] {
-        color: #111111 !important;
-    }
-
+    .stApp [data-testid="stProgressBar"] > div > div { background: #777 !important; }
+    .stApp hr { border-color: rgba(255,255,255,.8) !important; }
+    .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stMarkdownContainer"], .stApp [data-testid="stAlert"] { color: #111 !important; }
     @media (max-width: 700px) {
-        .main-title-wrap {
-            margin: 8px auto 24px;
-            padding: 28px 18px;
-            border-radius: 22px;
-        }
+        .main-title-wrap { margin: 8px auto 24px; padding: 28px 18px; border-radius: 22px; }
         .main-title-wrap .main-title { font-size: 30px; }
         .event-title { font-size: 25px; }
         [data-testid="stVerticalBlockBorderWrapper"] { padding: 18px !important; }
+        .info-grid { grid-template-columns: 1fr; }
     }
     </style>
     """,
@@ -1743,47 +1664,33 @@ def render_event_summary(data, index):
                 + (f'<div class="event-display-subtitle">{title_sub}</div>' if title_sub else ""),
                 unsafe_allow_html=True
             )
-            st.markdown(f'<div class="diary-note"><div class="diary-label">📅 행사 날짜</div><div class="diary-value">{date_range}</div></div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="diary-note"><div class="diary-label">⏰ {time_label}</div><div class="diary-value">{time_text}</div></div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="diary-note"><div class="diary-label">📍 장소</div><div class="diary-value">{location}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="diary-note"><div class="diary-label">행사 날짜</div><div class="diary-value">{date_range}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="diary-note"><div class="diary-label">{time_label}</div><div class="diary-value">{time_text}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="diary-note"><div class="diary-label">장소</div><div class="diary-value">{location}</div></div>', unsafe_allow_html=True)
 
         st.divider()
-        st.markdown('<div style="font-size:1.8rem;font-weight:900;margin:0.25rem 0 0.8rem 0;">🐾 추가 정보</div>', unsafe_allow_html=True)
+        st.markdown('<div class="extra-info-heading">추가 정보</div>', unsafe_allow_html=True)
         special_info = data.get("special_info", []) or [
-            {"label": "🎤 초청 가수 라인업", "value": "-"},
-            {"label": "🏷️ 주최·주관", "value": "-"},
-            {"label": "🔞 나이 제한", "value": "-"},
-            {"label": "⚠️ 주의 사항", "value": "-"},
+            {"label": "초청 가수 라인업", "value": "-"},
+            {"label": "주최·주관", "value": "-"},
+            {"label": "나이 제한", "value": "-"},
+            {"label": "주의 사항", "value": "-"},
         ]
+        cards = []
         for item in special_info:
-            label = re.sub(r"^🐾\s*", "", item.get("label", ""))
-            # 항목별 이모지는 초청 가수/주최·주관/연령/주의 사항의 의미를 유지
-            if "초청 가수" in label or "라인업" in label: label = "🎤 초청 가수 라인업"
-            elif "주최" in label or "주관" in label: label = "🏷️ 주최·주관"
-            elif "나이" in label or "연령" in label: label = "🔞 나이 제한"
-            elif "주의" in label: label = "⚠️ 주의 사항"
+            label = re.sub(r"^[^가-힣A-Za-z0-9]+", "", item.get("label", "")).strip()
             value = item.get("value") or "-"
-            if "초청 가수" in label or "라인업" in label:
-                # 요일/가수별로 세로 정렬해 한눈에 구분되도록 표시합니다.
-                st.markdown(f"**{label}**")
-                if value == "-":
-                    st.write("-")
-                else:
-                    for block in str(value).split(" / "):
-                        lines = [part.strip() for part in block.splitlines() if part.strip()]
-                        if len(lines) > 1 and lines[0].endswith("요일"):
-                            st.markdown(f"**{lines[0]}**")
-                            for artist_line in lines[1:]:
-                                st.markdown(f"&nbsp;&nbsp;{artist_line}", unsafe_allow_html=True)
-                        else:
-                            for artist_line in lines:
-                                st.markdown(artist_line)
-            else:
-                st.write(f"**{label}**  {value}")
-
-        # 참가비·참가 대상·참여 방법도 '추가 정보' 영역 안에 통합해 표시합니다.
+            cards.append((label or "기타 정보", str(value)))
         for item in data.get("participation_info", []) or []:
-            st.write(f"**{item['label']}**  {item['value'] or '-'}")
+            label = re.sub(r"^[^가-힣A-Za-z0-9]+", "", item.get("label", "")).strip()
+            cards.append((label or "추가 정보", str(item.get("value") or "-")))
+
+        st.markdown('<div class="info-grid">' + ''.join(
+            '<div class="info-item"><div class="info-label">' + html.escape(label) +
+            '</div><div class="info-value">' + value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>") +
+            '</div></div>' for label, value in cards
+        ) + '</div>', unsafe_allow_html=True)
+
         st.divider()
 
 
@@ -1816,10 +1723,10 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    st.write(f"📁 선택한 포스터: **{len(uploaded_files)}장**")
+    st.write(f"선택한 포스터: **{len(uploaded_files)}장**")
 
     if st.button(
-        "🔎 선택한 포스터에서 정보 찾기",
+        "선택한 포스터에서 정보 찾기",
         type="primary",
         use_container_width=True
     ):
@@ -1856,7 +1763,7 @@ if uploaded_files:
 # =========================================================
 if st.session_state.events:
     st.divider()
-    st.subheader("📋 행사 정보")
+    st.markdown('<div class="event-info-heading">행사정보</div>', unsafe_allow_html=True)
 
     for index, data in enumerate(st.session_state.events):
         source_name = data.get("source_name", f"행사 {index + 1}")
@@ -1869,11 +1776,11 @@ if st.session_state.events:
                 st.warning(data["ocr_error"])
             # 자동 추출이 실패한 경우에만 실제 OCR 결과를 확인할 수 있게 합니다.
             if data.get("needs_review") and data.get("ocr_text"):
-                with st.expander("🔎 읽어낸 포스터 글자 확인"):
+                with st.expander("읽어낸 포스터 글자 확인"):
                     st.code(data.get("ocr_text", ""), language=None)
 
             if data.get("needs_review"):
-                st.warning("⚠️ 자동 추출 결과를 확인해주세요.")
+                st.warning("자동 추출 결과를 확인해주세요.")
                 for reason in data.get("review_reasons", []):
                     st.write(f"• {reason}")
 
@@ -1883,12 +1790,12 @@ if st.session_state.events:
                 labels = [f"{d} (후보 {i+1})" for i,d in enumerate(candidates)]
                 current=data.get("selected_date", candidates[0])
                 idx=candidates.index(current) if current in candidates else 0
-                selected=st.selectbox("📅 캘린더에 추가할 행사 날짜", range(len(candidates)), index=idx, format_func=lambda x: labels[x], key=f"date_select_top_{index}")
+                selected=st.selectbox("캘린더에 추가할 행사 날짜", range(len(candidates)), index=idx, format_func=lambda x: labels[x], key=f"date_select_top_{index}")
                 data["selected_date"]=candidates[selected]; data["date"]=candidates[selected]
                 st.info("여러 날짜가 발견되었습니다. 행사 날짜를 선택한 뒤 캘린더에 추가하세요.")
 
             # 사용자가 수정할 수 있는 영역은 접어서 제공
-            with st.expander("✏️ 정보 수정 / 자세히 보기"):
+            with st.expander("정보 수정 / 자세히 보기"):
                 st.caption(
                     f"원본 포스터: {source_name} · "
                     "포스터에서 자동으로 찾은 정보를 수정할 수 있습니다."
@@ -1965,7 +1872,7 @@ if st.session_state.events:
                     key=f"url_{index}"
                 )
 
-                st.markdown("**✨ 포스터에서 발견한 추가 정보**")
+                st.markdown("**포스터에서 발견한 추가 정보**")
                 for item in data.get("special_info", []):
                     st.write(f"{item['label']}  {item['value']}")
                 for item in data.get("participation_info", []):
@@ -1981,7 +1888,7 @@ if st.session_state.events:
 
             if data.get("needs_review"):
                 data["confirmed"] = st.checkbox(
-                    "⚠️ 자동 추출 결과와 수정한 정보를 확인했습니다.",
+                    "자동 추출 결과와 수정한 정보를 확인했습니다.",
                     value=data.get("confirmed", False),
                     key=f"confirm_{index}"
                 )
@@ -1994,7 +1901,7 @@ if st.session_state.events:
 
             if duplicate:
                 st.error(
-                    "🚫 이미 추가한 행사입니다. "
+                    "이미 추가한 행사입니다. "
                     "같은 행사명·날짜·장소의 행사는 중복 추가할 수 없습니다."
                 )
                 continue
@@ -2019,7 +1926,7 @@ if st.session_state.events:
 
             if long_event:
                 st.info(
-                    "📅 장기 행사예요. 참여할 날짜를 Google Calendar에서 직접 선택해 주세요.\n\n"
+                    "장기 행사예요. 참여할 날짜를 Google Calendar에서 직접 선택해 주세요.\n\n"
                     f"행사 기간: {data.get('date', '')} ~ {data.get('end_date', '')}"
                 )
 
@@ -2028,14 +1935,14 @@ if st.session_state.events:
             ics = make_ics(data)
 
             if blocked:
-                st.info("⚠️ 위의 정보 확인을 완료하면 캘린더에 추가할 수 있습니다.")
+                st.info("위의 정보 확인을 완료하면 캘린더에 추가할 수 있습니다.")
 
             col1, col2 = st.columns(2)
 
             with col1:
                 if calendar_url:
                     st.link_button(
-                        "🗓️ Google Calendar에 추가",
+                        "Google Calendar에 추가",
                         calendar_url,
                         use_container_width=True,
                         disabled=blocked
@@ -2044,7 +1951,7 @@ if st.session_state.events:
             with col2:
                 if ics:
                     st.download_button(
-                        "📥 일정 파일 다운로드",
+                        "일정 파일 다운로드",
                         data=ics,
                         file_name=f"event_{index + 1}.ics",
                         mime="text/calendar",
@@ -2055,7 +1962,7 @@ if st.session_state.events:
                     st.caption("Google Calendar 외 다른 캘린더에서도 사용할 수 있는 일정 파일입니다.")
 
             if st.button(
-                "✅ 캘린더에 추가 완료로 표시",
+                "캘린더에 추가 완료로 표시",
                 key=f"added_{index}",
                 use_container_width=True,
                 disabled=blocked
@@ -2072,7 +1979,7 @@ if st.session_state.events:
 # =========================================================
 if st.session_state.added_event_keys:
     st.divider()
-    st.subheader("✅ 이미 추가한 행사")
+    st.subheader("이미 추가한 행사")
 
     for event in st.session_state.events:
         if is_duplicate(event):
