@@ -603,6 +603,155 @@ st.markdown(
         [data-testid="stVerticalBlockBorderWrapper"] { padding-left: 34px !important; }
     }
     
+    /* =====================================================
+       2026-10-30 최종 유리 물방울 디자인 복원
+       회색 배경 + 투명한 유리 카드 + 이중 곡선 하이라이트
+       ===================================================== */
+    .stApp {
+        background: linear-gradient(145deg, #777b80 0%, #92969b 48%, #70757a 100%) !important;
+        background-attachment: fixed !important;
+        color: #252a30 !important;
+    }
+    [data-testid="stHeader"] {
+        background: rgba(120,124,130,.42) !important;
+        backdrop-filter: blur(18px) saturate(145%) !important;
+    }
+    [data-testid="stAppViewContainer"] > .main {
+        background: transparent !important;
+    }
+    .main-title-wrap {
+        background: linear-gradient(135deg, rgba(255,255,255,.25), rgba(255,255,255,.08)) !important;
+        border: 1px solid rgba(255,255,255,.48) !important;
+        border-radius: 28px !important;
+        box-shadow: inset 0 1px 1px rgba(255,255,255,.72), inset 0 -1px 2px rgba(255,255,255,.16), 0 18px 38px rgba(25,30,36,.20) !important;
+        backdrop-filter: blur(22px) saturate(155%) !important;
+        -webkit-backdrop-filter: blur(22px) saturate(155%) !important;
+        transform: none !important;
+    }
+    .main-title-wrap .main-title,
+    .main-title-wrap .main-subtitle,
+    .stApp h1, .stApp h2, .stApp h3,
+    .event-title, .event-display-title, .event-display-subtitle {
+        color: #20252b !important;
+        text-shadow: 0 1px 0 rgba(255,255,255,.35) !important;
+    }
+    /* 큰 행사 카드: 유리처럼 투명하되 충분한 명암과 깊이감 */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        position: relative !important;
+        background: linear-gradient(138deg, rgba(255,255,255,.34) 0%, rgba(255,255,255,.17) 42%, rgba(235,242,248,.12) 100%) !important;
+        background-image: linear-gradient(138deg, rgba(255,255,255,.34), rgba(255,255,255,.17) 42%, rgba(235,242,248,.12)) !important;
+        border: 1px solid rgba(255,255,255,.58) !important;
+        border-left: 1px solid rgba(255,255,255,.68) !important;
+        border-radius: 28px !important;
+        box-shadow: inset 0 1.5px 1px rgba(255,255,255,.78), inset 1px 0 1px rgba(255,255,255,.38), inset 0 -2px 5px rgba(255,255,255,.13), 0 18px 42px rgba(24,30,38,.24), 0 4px 12px rgba(24,30,38,.12) !important;
+        backdrop-filter: blur(24px) saturate(165%) !important;
+        -webkit-backdrop-filter: blur(24px) saturate(165%) !important;
+        overflow: hidden !important;
+        transition: transform .28s cubic-bezier(.2,.8,.2,1), box-shadow .28s ease, border-color .28s ease !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]:hover {
+        transform: translateY(-5px) scale(1.006) !important;
+        border-color: rgba(255,255,255,.82) !important;
+        box-shadow: inset 0 2px 2px rgba(255,255,255,.88), inset 1px 0 2px rgba(255,255,255,.48), inset 0 -2px 6px rgba(255,255,255,.18), 0 25px 52px rgba(20,26,34,.30), 0 7px 18px rgba(20,26,34,.15) !important;
+    }
+    /* 유리 표면의 얇은 이중 곡선 반사광 */
+    [data-testid="stVerticalBlockBorderWrapper"]::before {
+        content: "" !important;
+        position: absolute !important;
+        inset: 1px !important;
+        width: auto !important;
+        height: auto !important;
+        left: 1px !important;
+        top: 1px !important;
+        transform: none !important;
+        border-radius: 27px !important;
+        background: linear-gradient(155deg, rgba(255,255,255,.52) 0%, rgba(255,255,255,.12) 10%, transparent 27%, transparent 72%, rgba(255,255,255,.08) 100%) !important;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.88), inset 1px 0 0 rgba(255,255,255,.35) !important;
+        pointer-events: none !important;
+        z-index: 0 !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::after {
+        content: "" !important;
+        position: absolute !important;
+        top: 9px !important;
+        left: 12px !important;
+        right: 12px !important;
+        width: auto !important;
+        height: 42% !important;
+        border-radius: 24px 24px 48% 48% !important;
+        border-top: 1px solid rgba(255,255,255,.78) !important;
+        border-left: 1px solid rgba(255,255,255,.22) !important;
+        border-right: 1px solid rgba(255,255,255,.18) !important;
+        background: linear-gradient(180deg, rgba(255,255,255,.12), transparent 72%) !important;
+        box-shadow: 0 -1px 0 rgba(255,255,255,.28) !important;
+        pointer-events: none !important;
+        z-index: 0 !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] > div {
+        position: relative !important;
+        z-index: 1 !important;
+    }
+    /* 내부 정보 메모도 반투명 유리 */
+    .diary-note, .info-item {
+        background: linear-gradient(135deg, rgba(255,255,255,.43), rgba(255,255,255,.20)) !important;
+        border: 1px solid rgba(255,255,255,.62) !important;
+        border-radius: 18px !important;
+        box-shadow: inset 0 1px 1px rgba(255,255,255,.76), inset 0 -1px 2px rgba(255,255,255,.18), 0 7px 18px rgba(28,34,42,.10) !important;
+        backdrop-filter: blur(15px) saturate(150%) !important;
+        -webkit-backdrop-filter: blur(15px) saturate(150%) !important;
+        transition: transform .24s ease, box-shadow .24s ease !important;
+    }
+    .diary-note:hover, .info-item:hover {
+        transform: translateY(-3px) scale(1.012) !important;
+        box-shadow: inset 0 1px 2px rgba(255,255,255,.9), 0 12px 24px rgba(28,34,42,.16) !important;
+    }
+    .diary-label, .info-label { color: #555e68 !important; }
+    .diary-value, .info-value, .event-sub-info, .keyword-text { color: #252c34 !important; }
+    /* 업로드 영역도 불투명 흰 박스가 아닌 투명 유리 */
+    .stApp [data-testid="stFileUploader"] {
+        background: rgba(255,255,255,.20) !important;
+        border: 1px dashed rgba(255,255,255,.78) !important;
+        border-radius: 22px !important;
+        box-shadow: inset 0 1px 1px rgba(255,255,255,.64), 0 12px 28px rgba(25,30,36,.16) !important;
+        backdrop-filter: blur(18px) saturate(145%) !important;
+        -webkit-backdrop-filter: blur(18px) saturate(145%) !important;
+    }
+    .stApp [data-testid="stFileUploaderDropzone"] { background: transparent !important; }
+    /* 포스터 이미지: 모서리와 반사광, 부드러운 말랑 호버 */
+    .stApp [data-testid="stImage"] img {
+        border-radius: 20px !important;
+        border: 1px solid rgba(255,255,255,.72) !important;
+        box-shadow: 0 12px 28px rgba(20,26,34,.24), 0 2px 5px rgba(255,255,255,.28) !important;
+        transition: transform .32s cubic-bezier(.2,.8,.2,1), box-shadow .32s ease !important;
+        transform-origin: center center !important;
+    }
+    .stApp [data-testid="stImage"] img:hover {
+        transform: translateY(-5px) scale(1.018) !important;
+        box-shadow: 0 20px 38px rgba(20,26,34,.30), 0 2px 8px rgba(255,255,255,.42) !important;
+    }
+    /* 사용자가 요청한 확인/날짜 선택 구역은 가독성을 위해 흰색 유지 */
+    .stApp [data-testid="stExpander"] details > summary,
+    .stApp [data-testid="stExpander"] details[open] > summary {
+        background: rgba(255,255,255,.94) !important;
+        color: #272b31 !important;
+        border: 1px solid rgba(255,255,255,.98) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 5px 14px rgba(25,30,36,.10) !important;
+    }
+    .stApp [data-testid="stExpander"] details > summary p,
+    .stApp [data-testid="stExpander"] details > summary span { color: #292e35 !important; }
+    .stApp [data-testid="stExpander"] details > div {
+        background: rgba(255,255,255,.94) !important;
+        border-radius: 0 0 16px 16px !important;
+    }
+    .stApp input, .stApp textarea,
+    .stApp [data-baseweb="select"] > div {
+        background: rgba(255,255,255,.90) !important;
+        border-color: rgba(255,255,255,.94) !important;
+        color: #252a30 !important;
+    }
+    .stApp .stCaption, .stApp [data-testid="stCaptionContainer"] { color: #e9edf0 !important; }
+
     /* 최종 안정화: Streamlit 펼침 메뉴의 제목과 화살표 아이콘을 서로 다른 영역에 배치 */
     .stApp [data-testid="stExpander"] details > summary {
         display: flex !important;
