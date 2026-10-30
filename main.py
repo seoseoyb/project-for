@@ -21,248 +21,196 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap');
 
-    /* 전체 테마: 따뜻한 크림 + 라벤더 포인트 */
-    .stApp {
-        font-family: "Jua", "Gowun Dodum", "Malgun Gothic", sans-serif;
-        background: linear-gradient(180deg, #f7f7f8 0%, #ffffff 44%, #f4f4f5 100%);
-        color: #202024;
+    /* Clean white app surface */
+    :root {
+        color-scheme: light;
     }
-
-    /* 앱 전체를 동글동글한 글씨로 통일 */
-    .stApp p, .stApp label, .stApp input, .stApp textarea,
-    .stApp select, .stApp [data-testid="stMarkdownContainer"],
-    .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stFileUploaderDropzone"] {
+    html, body, .stApp, [data-testid="stAppViewContainer"],
+    [data-testid="stMain"], [data-testid="stHeader"] {
+        background: #ffffff !important;
+        color: #111111 !important;
+    }
+    .stApp, .stApp * {
+        color: #111111;
         font-family: "Gowun Dodum", "Jua", "Malgun Gothic", sans-serif !important;
     }
-
-    /* Streamlit 아이콘은 아이콘 폰트를 유지 */
     .stApp .material-symbols-outlined,
     .stApp .material-icons,
     .stApp [class*="material-symbols"] {
         font-family: "Material Symbols Outlined" !important;
     }
-
     h1, h2, h3, h4, h5, h6 {
+        color: #111111 !important;
         font-family: "Jua", "Gowun Dodum", sans-serif !important;
         font-weight: 400 !important;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.025em;
+    }
+    p, label, span, div, small, input, textarea, button {
+        color: #111111;
+    }
+    [data-testid="stMain"] > div {
+        max-width: 1120px;
+        margin: 0 auto !important;
+        padding: 2rem 1.5rem 3rem !important;
+        background: #ffffff !important;
     }
 
-    /* 상단 제목 영역 */
+    /* Frosted-glass title panel */
     .main-title-wrap {
+        position: relative;
+        max-width: 980px;
+        margin: 18px auto 34px;
+        padding: 36px 28px 34px;
         text-align: center;
-        padding: 24px 12px 12px 12px;
+        border: 1px solid rgba(255,255,255,.92);
+        border-radius: 28px;
+        background: rgba(255,255,255,.58);
+        -webkit-backdrop-filter: blur(18px) saturate(145%);
+        backdrop-filter: blur(18px) saturate(145%);
+        box-shadow:
+            inset 0 1px 0 rgba(255,255,255,.98),
+            inset 0 -1px 0 rgba(20,20,20,.035),
+            0 12px 34px rgba(0,0,0,.055);
+        isolation: isolate;
     }
-
+    .main-title-wrap::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        border-radius: inherit;
+        background: linear-gradient(135deg,
+            rgba(255,255,255,.88) 0%,
+            rgba(255,255,255,.42) 48%,
+            rgba(245,245,245,.24) 100%);
+        pointer-events: none;
+    }
     .main-title-wrap .main-title {
-        font-family: "Jua", "Gowun Dodum", sans-serif
-        font-size: clamp(32px, 4vw, 48px);
-        line-height: 1.25;
-        color: #17171b;
         margin: 0;
+        color: #111111 !important;
+        font-family: "Jua", "Gowun Dodum", sans-serif !important;
+        font-size: clamp(30px, 4vw, 46px);
+        line-height: 1.3;
+        letter-spacing: -.035em;
+        text-shadow: 0 1px 0 rgba(255,255,255,.9);
     }
-
     .main-title-wrap .main-subtitle {
         margin-top: 10px;
-        color: #66666f;
-        font-family: "Gowun Dodum", "Jua", sans-serif;
-        font-size: 16px;
-        font-weight: 400;
+        color: #111111 !important;
+        font-size: 15px;
     }
 
-    /* 업로드 영역 */
+    /* Poster uploader: simple white surface with a fine outline */
     [data-testid="stFileUploader"] {
-        background: rgba(255,255,255,.98);
-        border: 2px dashed #bdbdc5;
-        border-radius: 18px 24px 20px 14px;
-        padding: 9px;
-        box-shadow: 3px 4px 0 rgba(20,20,24,.05), 0 10px 22px rgba(20,20,24,.06);
+        padding: 12px;
+        border: 1px solid #e7e7e7;
+        border-radius: 20px;
+        background: #ffffff !important;
+        box-shadow: 0 5px 18px rgba(0,0,0,.035);
+    }
+    [data-testid="stFileUploaderDropzone"] {
+        background: #ffffff !important;
+        border: 1px dashed #cfcfcf !important;
+        border-radius: 15px !important;
+    }
+    [data-testid="stFileUploader"] button {
+        border: 1px solid #d8d8d8 !important;
+        border-radius: 10px !important;
+        background: rgba(255,255,255,.72) !important;
+        color: #111111 !important;
     }
 
-    /* 메인 정보 찾기 버튼 */
+    /* Matching translucent glass action button */
     div.stButton > button[kind="primary"] {
-        border-radius: 16px !important;
-        min-height: 52px !important;
+        min-height: 58px !important;
+        border: 1px solid rgba(255,255,255,.96) !important;
+        border-radius: 19px !important;
+        background: linear-gradient(135deg,
+            rgba(255,255,255,.88),
+            rgba(242,242,242,.48)) !important;
+        color: #111111 !important;
+        -webkit-backdrop-filter: blur(16px) saturate(145%);
+        backdrop-filter: blur(16px) saturate(145%);
+        box-shadow:
+            inset 0 1px 0 rgba(255,255,255,1),
+            0 7px 22px rgba(0,0,0,.075),
+            0 1px 3px rgba(0,0,0,.04) !important;
         font-family: "Jua", "Gowun Dodum", sans-serif !important;
         font-size: 18px !important;
-        letter-spacing: -0.01em;
-        border: 0 !important;
-        box-shadow: 0 7px 18px rgba(20,20,24,0.16);
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
     }
-
     div.stButton > button[kind="primary"]:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 22px rgba(20,20,24,0.22);
+        background: rgba(255,255,255,.96) !important;
+        box-shadow:
+            inset 0 1px 0 #ffffff,
+            0 11px 28px rgba(0,0,0,.10) !important;
+    }
+    div.stButton > button[kind="primary"]:focus {
+        outline: 2px solid #777777 !important;
+        outline-offset: 3px;
     }
 
-    /* ───────── 다이어리 노트형 행사 카드 ───────── */
+    /* Event cards */
     [data-testid="stVerticalBlockBorderWrapper"] {
         position: relative;
-        margin: 28px 0 34px 0 !important;
-        padding: 28px 28px 24px 42px !important;
-        border-radius: 10px 18px 14px 12px !important;
-        border: 1px solid #e5e5e9 !important;
-        border-left: 3px solid #242429 !important;
-        background-color: #ffffff !important;
-        background-image:
-            linear-gradient(to right, transparent 0, transparent 31px, rgba(30,30,35,.06) 32px, transparent 33px),
-            repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(30,30,35,.035) 32px, transparent 33px);
-        box-shadow: 4px 7px 0 rgba(20,20,24,.05), 0 14px 30px rgba(20,20,24,.08);
-        overflow: visible !important;
+        margin: 22px 0 28px !important;
+        padding: 24px !important;
+        border: 1px solid #e9e9e9 !important;
+        border-radius: 20px !important;
+        background: #ffffff !important;
+        box-shadow: 0 7px 24px rgba(0,0,0,.045) !important;
     }
-
-    /* 노트 위에 붙인 마스킹테이프 */
-    [data-testid="stVerticalBlockBorderWrapper"]::before {
-        content: "";
-        position: absolute;
-        z-index: 5;
-        top: -13px;
-        left: 50%;
-        transform: translateX(-50%) rotate(-2deg);
-        width: 108px;
-        height: 28px;
-        border-radius: 5px;
-        background: rgba(28,28,33,.92);
-        box-shadow: 0 2px 5px rgba(20,20,24,.12);
-    }
-
-    /* 노트의 왼쪽 바인더 구멍 느낌 */
+    [data-testid="stVerticalBlockBorderWrapper"]::before,
     [data-testid="stVerticalBlockBorderWrapper"]::after {
-        content: "";
-        position: absolute;
-        left: 8px;
-        top: 42px;
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background: #f1a8bd;
-        box-shadow: 0 39px #f1a8bd, 0 78px #f1a8bd, 0 117px #f1a8bd, 0 156px #f1a8bd, 0 195px #f1a8bd;
+        content: none !important;
+        display: none !important;
     }
-
-    .event-title {
-        font-family: "Jua", "Gowun Dodum", sans-serif;
-        font-size: 32px;
+    .event-title, .event-display-title {
+        color: #111111 !important;
+        font-family: "Jua", "Gowun Dodum", sans-serif !important;
+    }
+    .event-display-title {
+        font-size: clamp(28px, 3.2vw, 42px);
+        line-height: 1.2;
         font-weight: 400;
-        line-height: 1.25;
-        margin-bottom: 22px;
-        color: #1c1c21;
+        margin: 4px 0 2px;
+        letter-spacing: -.025em;
     }
-
-    .event-main-info {
-        display: flex;
-        gap: 12px;
-        margin-bottom: 18px;
+    .event-display-subtitle {
+        color: #111111 !important;
+        font-size: 15px;
+        line-height: 1.45;
+        margin: 0 0 18px 1px;
     }
-
-    .info-item {
-        flex: 1;
-        padding: 15px 18px;
-        border-radius: 12px;
-        background: #f7f7f8;
-        border: 1px dashed #d7d7dd;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
-    }
-
-    .info-label {
-        font-size: 14px;
-        font-weight: 700;
-        margin-bottom: 6px;
-        opacity: 0.72;
-    }
-
-    .info-value {
-        font-size: 20px;
-        font-weight: 750;
-    }
-
-    .event-sub-info {
-        display: grid;
-        gap: 8px;
-        font-size: 16px;
-        line-height: 1.55;
-        margin-bottom: 18px;
-    }
-
-    .event-description {
-        border-top: 1px solid #e8e8ec;
-        padding-top: 16px;
-    }
-
-    .keyword-text {
-        font-size: 16px;
-        line-height: 1.7;
-    }
-
-    /* 다이어리 메모지 느낌의 핵심 정보 */
-    .diary-note {
-        position: relative;
-        margin: 11px 0 14px 0;
-        padding: 14px 18px 15px 18px;
-        border-radius: 8px 13px 10px 7px;
-        border: 1px dashed #d7d7dd;
-        background: rgba(255,255,255,.96);
-        box-shadow: 2px 3px 0 rgba(20,20,24,.05);
-    }
-
-    .diary-note::after {
-        content: "";
-        position: absolute;
-        right: 10px;
-        top: 8px;
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        border: 2px solid #f1a8bd;
-        background: #ffffff;
-    }
-
-    .diary-label {
-        font-size: 13px;
-        font-weight: 700;
-        color: #686871;
-        margin-bottom: 4px;
-    }
-
-    .diary-value {
-        font-size: 18px;
-        color: #29292f;
-    }
-
-    /* 확장/수정 버튼 안의 아이콘이 글씨와 겹치지 않도록 아이콘 폰트를 강제로 분리 */
-    .stApp span[class*="material-symbols"],
-    .stApp span[class*="material-icons"],
-    .stApp i[class*="material-symbols"],
-    .stApp i[class*="material-icons"] {
-        font-family: "Material Symbols Outlined", "Material Icons" !important;
-        font-weight: normal !important;
-        font-style: normal !important;
-        letter-spacing: normal !important;
-    }
-
-    /* 정보 수정 / OCR 확인 영역 — 글자와 펼침 아이콘이 절대 겹치지 않게 */
-    .stApp [data-testid="stExpander"] summary {
-        min-height: 52px !important;
-        padding: 9px 16px !important;
+    .diary-note, .info-item {
+        background: #ffffff !important;
+        border: 1px solid #e8e8e8 !important;
         border-radius: 14px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,.025) !important;
+        padding: 15px 18px !important;
+        color: #111111 !important;
+    }
+    .diary-note::after { display: none !important; }
+    .diary-label, .info-label { color: #111111 !important; }
+    .diary-value, .info-value { color: #111111 !important; }
+    .event-sub-info, .event-description, .keyword-text { color: #111111 !important; }
+
+    /* Expander and ordinary controls */
+    .stApp [data-testid="stExpander"] summary {
+        min-height: 50px !important;
+        padding: 10px 15px !important;
+        border: 1px solid #e7e7e7 !important;
+        border-radius: 13px !important;
+        background: #ffffff !important;
         display: flex !important;
         align-items: center !important;
         gap: 12px !important;
-        overflow: hidden !important;
-        box-sizing: border-box !important;
-    }
-    .stApp [data-testid="stExpander"] summary > div {
-        display: flex !important;
-        align-items: center !important;
-        min-width: 0 !important;
-        flex: 1 1 auto !important;
     }
     .stApp [data-testid="stExpander"] summary p {
+        color: #111111 !important;
         margin: 0 !important;
-        padding: 0 !important;
         line-height: 1.45 !important;
-        font-family: "Gowun Dodum", "Jua", sans-serif !important;
-        font-weight: 400 !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
@@ -271,336 +219,33 @@ st.markdown(
         flex: 0 0 24px !important;
         width: 24px !important;
         min-width: 24px !important;
-        height: 24px !important;
-        line-height: 24px !important;
-        font-family: "Material Symbols Outlined", "Material Icons" !important;
-        font-weight: normal !important;
-        letter-spacing: normal !important;
-        overflow: hidden !important;
+        font-family: "Material Symbols Outlined" !important;
     }
-
-    .event-display-title {
-        font-family: "Jua", "Gowun Dodum", sans-serif;
-        font-size: clamp(28px, 3.2vw, 42px);
-        line-height: 1.2;
-        font-weight: 400;
-        color: #17171b;
-        margin: 4px 0 2px 0;
-        letter-spacing: -0.02em;
-    }
-    .event-display-subtitle {
-        font-family: "Gowun Dodum", "Jua", sans-serif;
-        font-size: 15px;
-        line-height: 1.45;
-        font-weight: 400;
-        color: #777780;
-        margin: 0 0 18px 1px;
-    }
-
-    /* 검은 고양이 테마: 깔끔한 흑백 + 말랑한 핑크 젤리 포인트 */
-    .stApp {
-        background: linear-gradient(180deg, #f6f6f7 0%, #ffffff 34%, #f7f7f8 100%);
-        color: #202024;
-    }
-    .main-title-wrap {
-        position: relative;
-        padding-top: 30px;
-        padding-bottom: 20px;
-    }
-    .main-title-wrap::before {
-        content: "🐈‍⬛";
-        display: block;
-        font-size: 43px;
-        line-height: 1.1;
-        margin-bottom: 8px;
-        filter: drop-shadow(0 4px 0 rgba(20,20,24,.06));
-    }
-    .main-title-wrap::after {
-        content: "肉球  •  pink beans  •  肉球";
-        display: block;
-        margin-top: 12px;
-        color: #e58da8;
-        font-family: "Gowun Dodum", sans-serif;
-        font-size: 12px;
-        letter-spacing: .14em;
-    }
-    .main-title-wrap .main-title { color: #17171b; }
-    .main-title-wrap .main-subtitle { color: #686871; }
-    [data-testid="stFileUploader"] {
-        position: relative;
-        background: #fff;
-        border: 2px dashed #c8c8cf;
-        border-radius: 22px;
-        box-shadow: 0 8px 24px rgba(20,20,24,.045);
-    }
-    [data-testid="stFileUploader"]::after {
-        content: "🐾";
-        position: absolute;
-        right: 15px;
-        bottom: 10px;
-        font-size: 23px;
-        opacity: .82;
-        pointer-events: none;
-    }
-    div.stButton > button[kind="primary"] {
-        background: #242429 !important;
-        color: #fff !important;
-        border: 1px solid #242429 !important;
-        border-radius: 17px !important;
-        box-shadow: 0 5px 0 #dedee3, 0 9px 18px rgba(20,20,24,.10) !important;
-    }
-    div.stButton > button[kind="primary"]:hover {
-        background: #3a3a42 !important;
-        border-color: #3a3a42 !important;
-        box-shadow: 0 3px 0 #dedee3, 0 8px 18px rgba(20,20,24,.13) !important;
-    }
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        border-color: #e1e1e5 !important;
-        border-left-color: #242429 !important;
-        background-color: #fff !important;
-        background-image: none !important;
-        border-radius: 20px !important;
-        box-shadow: 0 8px 24px rgba(20,20,24,.055) !important;
-    }
-    [data-testid="stVerticalBlockBorderWrapper"]::before {
-        content: "🐾";
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 43px;
-        height: 28px;
-        background: #f9dce5;
-        color: #28282d;
-        border-radius: 999px;
-        font-size: 16px;
-        box-shadow: none;
-        transform: translateX(-50%) rotate(-5deg);
-    }
-    [data-testid="stVerticalBlockBorderWrapper"]::after {
-        background: #f1a8bd;
-        box-shadow: 0 39px #f1a8bd, 0 78px #f1a8bd, 0 117px #f1a8bd, 0 156px #f1a8bd, 0 195px #f1a8bd;
-    }
-    .event-title, .event-display-title { color: #17171b !important; }
-    .info-item {
-        background: #f8f8f9;
-        border: 1px solid #e2e2e6;
-        border-radius: 16px;
-    }
-    .diary-note {
-        border: 1px solid #e4e4e8;
-        background: #fff;
-        border-radius: 14px;
-        box-shadow: 0 3px 0 rgba(20,20,24,.035);
-    }
-    .diary-note::after {
-        background: #f7c8d7;
-        border-color: #f1a8bd;
-    }
-    .diary-label { color: #777780; }
-    .diary-value { color: #29292f; }
-    .stApp [data-testid="stExpander"] summary {
-        background: #f8f8f9;
-        border: 1px solid #e5e5e9;
-        border-radius: 15px !important;
-    }
-    .stApp [data-testid="stExpander"] summary:hover { border-color: #f1a8bd; }
-    .stApp [data-testid="stFileUploaderDropzone"] { background: transparent; }
-    .stApp [data-testid="stProgressBar"] > div > div { background-color: #f1a8bd; }
-
-    /* ───── 종이 다이어리 테마: 크림색 종이 + 오렌지/블루 필기 포인트 ───── */
-    .stApp {
-        background: #f7f5ef !important;
-        color: #34495a !important;
-    }
-    [data-testid="stHeader"] { background: rgba(247,245,239,.92) !important; }
-    .main-title-wrap {
-        max-width: 900px;
-        margin: 10px auto 28px auto;
-        padding: 30px 20px 24px;
-        background: #fffefa;
-        border: 1px solid #e8e1d4;
-        border-radius: 4px 4px 18px 4px;
-        box-shadow: 5px 6px 0 #e8e1d4, 0 12px 28px rgba(72,82,90,.06);
-        transform: rotate(-.25deg);
-    }
-    .main-title-wrap::before {
-        content: "✦  MY EVENT DIARY  ✦";
-        font-family: "Jua", sans-serif;
-        font-size: 13px;
-        letter-spacing: .18em;
-        color: #df8d68;
-        filter: none;
-        margin-bottom: 12px;
-    }
-    .main-title-wrap::after {
-        content: "오늘의 행사도 다이어리에 차곡차곡";
-        color: #6387a0;
-        letter-spacing: .04em;
-        font-size: 13px;
-    }
-    .main-title-wrap .main-title { color: #38566c !important; }
-    .main-title-wrap .main-subtitle { color: #8a8278 !important; }
-
-    [data-testid="stFileUploader"] {
-        background: #fffefa !important;
-        border: 2px dashed #9db7c7 !important;
-        border-radius: 5px 5px 16px 5px !important;
-        box-shadow: 4px 5px 0 #e6e0d5, 0 10px 24px rgba(72,82,90,.05) !important;
-    }
-    [data-testid="stFileUploader"]::after { content: "✎"; color: #df8d68; font-size: 26px; }
-    div.stButton > button[kind="primary"] {
-        background: #5c829a !important;
-        color: #fffefa !important;
-        border: 1px solid #5c829a !important;
-        border-radius: 5px 5px 12px 5px !important;
-        box-shadow: 3px 4px 0 #d6e0e4 !important;
-    }
-    div.stButton > button[kind="primary"]:hover {
-        background: #466b83 !important;
-        border-color: #466b83 !important;
-        transform: translateY(-1px);
-    }
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #fffefa !important;
-        background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 35px, rgba(108,143,164,.10) 36px, transparent 37px) !important;
-        border: 1px solid #e7dfd2 !important;
-        border-left: 1px solid #e7dfd2 !important;
-        border-radius: 4px 4px 15px 4px !important;
-        box-shadow: 4px 5px 0 #e9e2d7, 0 12px 25px rgba(72,82,90,.06) !important;
-    }
-    [data-testid="stVerticalBlockBorderWrapper"]::before {
-        content: "✦ NOTES ✦" !important;
-        width: 92px !important;
-        height: 25px !important;
-        top: -11px !important;
-        background: #f4d4bd !important;
-        color: #a96448 !important;
-        border-radius: 2px !important;
-        font-family: "Jua", sans-serif !important;
-        font-size: 11px !important;
-        letter-spacing: .08em !important;
-        box-shadow: 0 2px 3px rgba(72,82,90,.08) !important;
-        transform: translateX(-50%) rotate(-2deg) !important;
-    }
-    [data-testid="stVerticalBlockBorderWrapper"]::after {
-        background: #f7f5ef !important;
-        border: 2px solid #c5a878 !important;
-        box-shadow: 0 39px #f7f5ef, 0 39px 0 2px #c5a878, 0 78px #f7f5ef, 0 78px 0 2px #c5a878, 0 117px #f7f5ef, 0 117px 0 2px #c5a878, 0 156px #f7f5ef, 0 156px 0 2px #c5a878, 0 195px #f7f5ef, 0 195px 0 2px #c5a878 !important;
-    }
-    .event-title, .event-display-title { color: #38566c !important; }
-    .event-display-subtitle { color: #91877b !important; }
-    .info-item {
-        background: #f8f7f1 !important;
-        border: 1px dashed #c9d7dc !important;
-        border-radius: 4px 4px 12px 4px !important;
-        box-shadow: 2px 3px 0 #eee8dd !important;
-    }
-    .info-label, .diary-label { color: #c17a58 !important; }
-    .info-value, .diary-value { color: #38566c !important; }
-    .diary-note {
-        background: #fffefa !important;
-        border: 1px dashed #c8d6dc !important;
-        border-radius: 4px 4px 12px 4px !important;
-        box-shadow: 2px 3px 0 #eee8dd !important;
-    }
-    .diary-note:nth-of-type(even) { background: #fff8f0 !important; }
-    .diary-note::after { background: #fffefa !important; border-color: #6f94a8 !important; }
-    .stApp [data-testid="stExpander"] summary {
-        background: #f9f6ef !important;
-        border: 1px solid #e4dccc !important;
-        border-radius: 4px 4px 10px 4px !important;
-    }
-    .stApp [data-testid="stExpander"] summary:hover { border-color: #df9a78 !important; }
-    .stApp [data-testid="stProgressBar"] > div > div { background-color: #df9a78 !important; }
-    .stApp hr { border-color: #e5ddd0 !important; }
-
-    /* 다이어리 스타일을 화면 전체에 더 확실하게 적용 */
-    .stApp, [data-testid="stAppViewContainer"] {
-        background-color: #f5f0e6 !important;
-        background-image: radial-gradient(#d9d0c1 0.65px, transparent 0.65px) !important;
-        background-size: 13px 13px !important;
-    }
-    [data-testid="stMain"] > div {
-        background: rgba(255, 253, 247, .78) !important;
-        border-left: 1px solid #e5dccd !important;
-        border-right: 1px solid #e5dccd !important;
-        max-width: 1120px;
-        margin: 0 auto !important;
-        padding-top: 2rem !important;
-    }
-    .main-title-wrap {
-        position: relative !important;
-        background: repeating-linear-gradient(#fffdf7 0px, #fffdf7 33px, #dce6e9 34px, #fffdf7 35px) !important;
-        border: 1px solid #e0d4c2 !important;
-        border-left: 7px solid #d99a78 !important;
-        border-radius: 3px 8px 8px 3px !important;
-        box-shadow: 7px 8px 0 #e4d9c8, 0 15px 30px rgba(83,69,50,.10) !important;
-        padding: 38px 30px 32px !important;
-        transform: rotate(-.35deg);
-    }
-    .main-title-wrap .main-title { font-size: clamp(30px, 4vw, 44px) !important; letter-spacing: -.04em; }
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        position: relative !important;
-        background-color: #fffdf7 !important;
-        background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(105,145,165,.15) 32px, transparent 33px) !important;
-        border: 1px solid #e4d8c7 !important;
-        border-radius: 3px 7px 7px 3px !important;
-        box-shadow: 6px 7px 0 #e6dccd, 0 12px 24px rgba(83,69,50,.07) !important;
-        padding: 22px 20px 20px 30px !important;
-    }
-    [data-testid="stVerticalBlockBorderWrapper"]::before {
-        content: "MEMO" !important;
-        position: absolute !important;
-        top: -10px !important; left: 50% !important;
-        width: 76px !important; height: 23px !important;
-        display: flex !important; align-items: center !important; justify-content: center !important;
-        background: #f0d2b7 !important; color: #a76649 !important;
-        font-size: 11px !important; letter-spacing: .12em !important;
-        border: none !important; border-radius: 2px !important;
-        transform: translateX(-50%) rotate(-3deg) !important;
-        box-shadow: 0 2px 3px rgba(83,69,50,.08) !important;
-    }
-    [data-testid="stVerticalBlockBorderWrapper"]::after {
-        left: 10px !important; top: 42px !important;
-        background: #f5f0e6 !important; border: 2px solid #c9b58f !important;
-        box-shadow: 0 39px #f5f0e6, 0 39px 0 2px #c9b58f, 0 78px #f5f0e6, 0 78px 0 2px #c9b58f, 0 117px #f5f0e6, 0 117px 0 2px #c9b58f !important;
-    }
-    .diary-note, .info-item {
-        background: #fffefa !important;
-        border: 1px dashed #c9d7dc !important;
-        border-radius: 3px 3px 12px 3px !important;
-        box-shadow: 3px 4px 0 #eee4d5 !important;
-        padding: 18px 20px !important;
-    }
-    .diary-label, .info-label { color: #c27d5a !important; text-transform: uppercase; letter-spacing: .04em; }
-    .diary-value, .info-value { color: #3f6175 !important; }
-    .stApp [data-testid="stFileUploader"] {
-        background: #fffdf7 !important; border: 2px dashed #8caaba !important;
-        border-radius: 4px 4px 14px 4px !important;
-        box-shadow: 5px 6px 0 #e7ddce !important; padding: 12px !important;
-    }
-    .stApp [data-testid="stFileUploaderDropzone"] { background: #fffdf7 !important; border: 0 !important; }
-    .stButton > button, .stDownloadButton > button, [data-testid="stLinkButton"] a {
-        border-radius: 4px 4px 12px 4px !important;
-        box-shadow: 3px 4px 0 #e5d9c9 !important;
-        font-weight: 700 !important; transition: transform .15s ease !important;
-    }
-    .stButton > button:hover, .stDownloadButton > button:hover { transform: translateY(-2px) rotate(-.4deg) !important; }
     .stTextInput input, .stTextArea textarea, .stDateInput input, .stTimeInput input,
-    .stSelectbox [data-baseweb="select"] > div, .stMultiSelect [data-baseweb="select"] > div {
-        background: #fffefa !important; border: 1px solid #d9cdbb !important; border-radius: 4px !important;
+    .stSelectbox [data-baseweb="select"] > div,
+    .stMultiSelect [data-baseweb="select"] > div {
+        color: #111111 !important;
+        background: #ffffff !important;
+        border: 1px solid #dedede !important;
+        border-radius: 10px !important;
     }
-    .stApp [data-testid="stExpander"] summary {
-        background: #fffaf0 !important; border: 1px dashed #cdbda5 !important; border-radius: 4px !important;
+    .stApp [data-testid="stProgressBar"] > div > div { background: #777777 !important; }
+    .stApp hr { border-color: #ededed !important; }
+    .stApp [data-testid="stCaptionContainer"],
+    .stApp [data-testid="stMarkdownContainer"],
+    .stApp [data-testid="stAlert"] {
+        color: #111111 !important;
     }
-    .stApp h1, .stApp h2, .stApp h3 { color: #3f6175 !important; }
-    .stApp hr { border-color: #dcd0be !important; }
 
     @media (max-width: 700px) {
+        .main-title-wrap {
+            margin: 8px auto 24px;
+            padding: 28px 18px;
+            border-radius: 22px;
+        }
+        .main-title-wrap .main-title { font-size: 30px; }
         .event-title { font-size: 25px; }
-        .event-main-info { flex-direction: column; }
-        .main-title-wrap .main-title { font-size: 32px; }
-        [data-testid="stVerticalBlockBorderWrapper"] { padding-left: 34px !important; }
+        [data-testid="stVerticalBlockBorderWrapper"] { padding: 18px !important; }
     }
     </style>
     """,
@@ -2157,7 +1802,7 @@ if "added_event_keys" not in st.session_state:
 st.markdown(
     """
     <div class="main-title-wrap">
-        <div class="main-title">📅 행사 포스터 일정 자동 등록</div>
+        <div class="main-title">행사 포스터 일정 자동 등록</div>
         <div class="main-subtitle">포스터를 올리면 행사 정보를 한눈에 정리하고 캘린더에 담을 수 있어요.</div>
     </div>
     """,
