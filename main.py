@@ -258,6 +258,128 @@ st.markdown(
         [data-testid="stVerticalBlockBorderWrapper"] { padding: 18px !important; }
         .info-grid { grid-template-columns: 1fr; }
     }
+
+
+    /* WATER DROP GLASS: nearly clear, rounded liquid-glass surfaces */
+    html, body, .stApp, [data-testid="stAppViewContainer"],
+    [data-testid="stMain"] {
+        background-color: #e7e9ed !important;
+        background-image:
+            radial-gradient(ellipse at 14% 12%, rgba(255,255,255,.78) 0%, rgba(255,255,255,0) 34%),
+            radial-gradient(ellipse at 86% 28%, rgba(255,255,255,.42) 0%, rgba(255,255,255,0) 30%),
+            radial-gradient(ellipse at 52% 88%, rgba(205,215,229,.34) 0%, rgba(205,215,229,0) 42%),
+            linear-gradient(145deg, #e9ebef, #dfe3e9 52%, #eceef1) !important;
+        background-attachment: fixed !important;
+    }
+
+    .main-title-wrap,
+    [data-testid="stFileUploader"],
+    [data-testid="stVerticalBlockBorderWrapper"],
+    .diary-note, .info-item,
+    .stApp [data-testid="stExpander"] details,
+    .stApp [data-testid="stExpander"] summary {
+        position: relative !important;
+        isolation: isolate !important;
+        overflow: hidden !important;
+        background: linear-gradient(145deg,
+            rgba(255,255,255,.075) 0%,
+            rgba(255,255,255,.018) 38%,
+            rgba(220,232,246,.045) 68%,
+            rgba(255,255,255,.085) 100%) !important;
+        -webkit-backdrop-filter: blur(9px) saturate(190%) contrast(1.035) !important;
+        backdrop-filter: blur(9px) saturate(190%) contrast(1.035) !important;
+        border: 1px solid rgba(255,255,255,.76) !important;
+        box-shadow:
+            inset 0 1.5px 1px rgba(255,255,255,.94),
+            inset 1px 0 1px rgba(255,255,255,.62),
+            inset 0 -1px 1px rgba(150,170,195,.14),
+            0 12px 28px rgba(72,86,108,.075),
+            0 2px 5px rgba(255,255,255,.34) !important;
+    }
+
+    /* Curved highlight on the upper edge, like light on a water droplet */
+    .main-title-wrap::before,
+    [data-testid="stVerticalBlockBorderWrapper"]::before,
+    .diary-note::before, .info-item::before {
+        content: "" !important;
+        display: block !important;
+        position: absolute !important;
+        z-index: 0 !important;
+        pointer-events: none !important;
+        top: -42%; left: 8%; width: 68%; height: 72%;
+        border-radius: 50%;
+        background: radial-gradient(ellipse at center,
+            rgba(255,255,255,.48) 0%,
+            rgba(255,255,255,.19) 26%,
+            rgba(255,255,255,.035) 57%,
+            transparent 72%);
+        filter: blur(5px);
+        opacity: .78;
+    }
+    .main-title-wrap::after,
+    [data-testid="stVerticalBlockBorderWrapper"]::after,
+    .diary-note::after, .info-item::after {
+        content: "" !important;
+        display: block !important;
+        position: absolute !important;
+        z-index: 0 !important;
+        pointer-events: none !important;
+        inset: 1px;
+        border-radius: inherit;
+        border-top: 1px solid rgba(255,255,255,.72);
+        border-left: 1px solid rgba(255,255,255,.30);
+        border-right: 1px solid rgba(255,255,255,.12);
+        background: linear-gradient(118deg,
+            rgba(255,255,255,.16) 0%,
+            transparent 24%,
+            transparent 70%,
+            rgba(255,255,255,.09) 100%);
+        opacity: .8;
+    }
+    .main-title-wrap > *,
+    [data-testid="stVerticalBlockBorderWrapper"] > *,
+    .diary-note > *, .info-item > * { position: relative; z-index: 1; }
+
+    [data-testid="stFileUploaderDropzone"] {
+        background: rgba(255,255,255,.018) !important;
+        -webkit-backdrop-filter: blur(5px) !important;
+        backdrop-filter: blur(5px) !important;
+        border: 1px dashed rgba(255,255,255,.72) !important;
+    }
+
+    div.stButton > button[kind="primary"],
+    .stDownloadButton > button,
+    [data-testid="stLinkButton"] a {
+        background: linear-gradient(145deg, rgba(255,255,255,.18), rgba(255,255,255,.035) 55%, rgba(210,225,242,.09)) !important;
+        -webkit-backdrop-filter: blur(12px) saturate(190%) !important;
+        backdrop-filter: blur(12px) saturate(190%) !important;
+        border: 1px solid rgba(255,255,255,.88) !important;
+        box-shadow: inset 0 1px 1px rgba(255,255,255,.95),
+                    inset 0 -1px 1px rgba(150,170,195,.16),
+                    0 10px 24px rgba(72,86,108,.10) !important;
+    }
+    div.stButton > button[kind="primary"]:hover,
+    .stDownloadButton > button:hover,
+    [data-testid="stLinkButton"] a:hover {
+        background: linear-gradient(145deg, rgba(255,255,255,.28), rgba(255,255,255,.065)) !important;
+        box-shadow: inset 0 1px 1px rgba(255,255,255,1),
+                    inset 0 0 16px rgba(255,255,255,.18),
+                    0 18px 34px rgba(72,86,108,.14) !important;
+    }
+
+    /* Keep the existing soft, elastic hover motion exactly in place */
+    .diary-note, .info-item {
+        transition: transform .48s cubic-bezier(.2, 1.7, .35, 1),
+                    border-radius .48s ease, box-shadow .38s ease,
+                    background .38s ease !important;
+    }
+    .diary-note:hover, .info-item:hover {
+        background: linear-gradient(145deg, rgba(255,255,255,.13), rgba(255,255,255,.035) 58%, rgba(220,232,246,.08)) !important;
+        box-shadow: inset 0 1.5px 1px rgba(255,255,255,1),
+                    inset 0 0 18px rgba(255,255,255,.20),
+                    0 17px 34px rgba(72,86,108,.13) !important;
+    }
+
     </style>
     """,
     unsafe_allow_html=True
