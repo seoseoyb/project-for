@@ -205,8 +205,53 @@ st.markdown(
         border-radius: 17px !important; background: rgba(255,255,255,.008) !important;
         transition: transform .5s cubic-bezier(.2,1.6,.35,1), box-shadow .4s ease !important;
     }
-    .stApp [data-testid="stExpander"] summary { min-height: 50px !important; padding: 10px 15px !important; }
-    .stApp [data-testid="stExpander"] summary p { color: #17191d !important; }
+    .stApp [data-testid="stExpander"] summary {
+        min-height: 54px !important;
+        padding: 11px 17px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        box-sizing: border-box !important;
+        overflow: visible !important;
+    }
+    /* Expander 제목과 펼침 화살표가 서로 겹치지 않도록 영역을 분리 */
+    .stApp [data-testid="stExpander"] summary [data-testid="stExpanderToggleIcon"],
+    .stApp [data-testid="stExpander"] summary svg {
+        flex: 0 0 auto !important;
+        width: 1.15rem !important;
+        height: 1.15rem !important;
+        margin: 0 2px 0 0 !important;
+        position: static !important;
+    }
+    .stApp [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        width: auto !important;
+        overflow: visible !important;
+    }
+    .stApp [data-testid="stExpander"] summary p {
+        color: #17191d !important;
+        margin: 0 !important;
+        line-height: 1.45 !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    /* 자동 추출 확인/날짜 안내/확인 안내 박스는 노랑·파랑 대신 흰색 */
+    .stApp [data-testid="stAlert"] {
+        background: rgba(255,255,255,.94) !important;
+        background-color: rgba(255,255,255,.94) !important;
+        color: #17191d !important;
+        border: 1px solid rgba(255,255,255,.98) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 5px 16px rgba(65,76,91,.055),
+                    inset 0 1px 0 rgba(255,255,255,1) !important;
+    }
+    .stApp [data-testid="stAlert"] > div,
+    .stApp [data-testid="stAlert"] [data-testid="stMarkdownContainer"] {
+        background: transparent !important;
+        color: #17191d !important;
+    }
+    .stApp [data-testid="stAlert"] p { color: #17191d !important; }
     .stTextInput input, .stTextArea textarea, .stDateInput input, .stTimeInput input,
     .stSelectbox [data-baseweb="select"] > div, .stMultiSelect [data-baseweb="select"] > div {
         color: #17191d !important; background: rgba(255,255,255,.12) !important;
@@ -266,6 +311,90 @@ st.markdown(
         border-radius: 25px !important;
         box-shadow: 0 0 0 1px rgba(255,255,255,1),
                     0 15px 30px rgba(65,76,91,.14) !important;
+    }
+
+    /* =====================================================
+       EXTRA CLEAR WATER-DROP GLASS OVERRIDES
+       투명한 내부 + 가장자리 굴절 + 물방울 하이라이트
+       ===================================================== */
+    .main-title-wrap,
+    [data-testid="stFileUploader"],
+    [data-testid="stVerticalBlockBorderWrapper"],
+    .diary-note, .info-item,
+    .stApp [data-testid="stExpander"] details,
+    .stApp [data-testid="stExpander"] summary {
+        background: transparent !important;
+        background-color: rgba(255,255,255,0.002) !important;
+        -webkit-backdrop-filter: blur(0px) saturate(118%) !important;
+        backdrop-filter: blur(0px) saturate(118%) !important;
+        border: 1px solid rgba(255,255,255,.92) !important;
+        box-shadow:
+            inset 0 2px 1px rgba(255,255,255,.98),
+            inset 1.5px 0 1px rgba(255,255,255,.82),
+            inset -1.5px 0 1px rgba(255,255,255,.48),
+            inset 0 -2px 2px rgba(255,255,255,.78),
+            inset 0 -5px 9px rgba(115,126,141,.075),
+            0 2px 4px rgba(255,255,255,.55),
+            0 13px 28px rgba(70,80,94,.085) !important;
+    }
+
+    /* 물방울 표면에 맺힌 작은 반사광: 면은 투명하게 두고 가장자리만 강조 */
+    .main-title-wrap::before,
+    [data-testid="stVerticalBlockBorderWrapper"]::before,
+    .diary-note::before, .info-item::before,
+    [data-testid="stFileUploader"]::before {
+        background:
+            radial-gradient(ellipse 18% 7% at 18% 2%,
+                rgba(255,255,255,1) 0%, rgba(255,255,255,.72) 28%,
+                rgba(255,255,255,.12) 62%, transparent 100%),
+            radial-gradient(ellipse 10% 5% at 83% 5%,
+                rgba(255,255,255,.82) 0%, rgba(255,255,255,.18) 58%, transparent 100%),
+            radial-gradient(ellipse 24% 8% at 72% 100%,
+                rgba(255,255,255,.52) 0%, rgba(255,255,255,.10) 52%, transparent 100%) !important;
+        opacity: .95 !important;
+    }
+    .main-title-wrap::after,
+    [data-testid="stVerticalBlockBorderWrapper"]::after,
+    .diary-note::after, .info-item::after,
+    [data-testid="stFileUploader"]::after {
+        border: 1px solid rgba(255,255,255,.30) !important;
+        border-top: 1.5px solid rgba(255,255,255,1) !important;
+        border-left: 1px solid rgba(255,255,255,.76) !important;
+        border-right: 1px solid rgba(255,255,255,.48) !important;
+        border-bottom: 1.5px solid rgba(255,255,255,.90) !important;
+        box-shadow:
+            inset 0 1.5px 2px rgba(255,255,255,.95),
+            inset 1px 0 2px rgba(255,255,255,.50),
+            inset -1px 0 2px rgba(255,255,255,.24),
+            inset 0 -2px 3px rgba(255,255,255,.48),
+            inset 0 -6px 10px rgba(100,112,128,.045) !important;
+    }
+
+    /* 정보 카드 내부는 색을 채우지 않고 배경이 그대로 보이게 */
+    .diary-note, .info-item,
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background: rgba(255,255,255,.001) !important;
+    }
+    [data-testid="stFileUploaderDropzone"] {
+        background: rgba(255,255,255,.001) !important;
+        border: 1px dashed rgba(255,255,255,.78) !important;
+        box-shadow: inset 0 1px 2px rgba(255,255,255,.72),
+                    inset 0 -2px 5px rgba(100,112,128,.035) !important;
+    }
+
+    /* hover 시 투명한 물방울이 살짝 부풀고 빛이 강해지는 효과 */
+    .main-title-wrap:hover,
+    [data-testid="stFileUploader"]:hover,
+    [data-testid="stVerticalBlockBorderWrapper"]:hover,
+    .diary-note:hover, .info-item:hover {
+        background: rgba(255,255,255,.006) !important;
+        box-shadow:
+            inset 0 2px 2px rgba(255,255,255,1),
+            inset 1px 0 2px rgba(255,255,255,.82),
+            inset 0 -3px 5px rgba(255,255,255,.65),
+            inset 0 -7px 12px rgba(100,112,128,.065),
+            0 3px 7px rgba(255,255,255,.62),
+            0 18px 36px rgba(70,80,94,.13) !important;
     }
 
     @media (prefers-reduced-motion: reduce) {
