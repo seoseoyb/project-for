@@ -380,6 +380,130 @@ st.markdown(
                     0 17px 34px rgba(72,86,108,.13) !important;
     }
 
+    /* ULTRA CLEAR WATER: surface stays transparent; only the thin rim catches light */
+    html, body, .stApp, [data-testid="stAppViewContainer"],
+    [data-testid="stMain"] {
+        background-color: #e5e7eb !important;
+        background-image:
+            radial-gradient(ellipse at 18% 8%, rgba(255,255,255,.34), transparent 38%),
+            radial-gradient(ellipse at 82% 70%, rgba(255,255,255,.18), transparent 42%),
+            linear-gradient(135deg, #e8eaed 0%, #dfe2e6 52%, #e9ebee 100%) !important;
+        background-attachment: fixed !important;
+    }
+
+    .main-title-wrap,
+    [data-testid="stFileUploader"],
+    [data-testid="stVerticalBlockBorderWrapper"],
+    .diary-note, .info-item,
+    .stApp [data-testid="stExpander"] details,
+    .stApp [data-testid="stExpander"] summary {
+        background: rgba(255,255,255,.012) !important;
+        -webkit-backdrop-filter: blur(2px) saturate(145%) !important;
+        backdrop-filter: blur(2px) saturate(145%) !important;
+        border: 1px solid rgba(255,255,255,.92) !important;
+        box-shadow:
+            inset 0 1px 1px rgba(255,255,255,.98),
+            inset 1px 0 1px rgba(255,255,255,.72),
+            inset -1px 0 1px rgba(255,255,255,.34),
+            inset 0 -1px 1px rgba(255,255,255,.62),
+            0 9px 25px rgba(75,85,100,.055) !important;
+    }
+
+    /* Delicate liquid bead rim: two fine highlights, no milky fill */
+    .main-title-wrap::before,
+    [data-testid="stVerticalBlockBorderWrapper"]::before,
+    .diary-note::before, .info-item::before,
+    [data-testid="stFileUploader"]::before {
+        content: "" !important;
+        position: absolute !important;
+        inset: 1px !important;
+        display: block !important;
+        pointer-events: none !important;
+        border-radius: inherit !important;
+        background: linear-gradient(128deg,
+            rgba(255,255,255,.42) 0%,
+            rgba(255,255,255,.04) 18%,
+            transparent 48%,
+            rgba(255,255,255,.08) 78%,
+            rgba(255,255,255,.28) 100%) !important;
+        opacity: .72 !important;
+        z-index: 0 !important;
+    }
+    .main-title-wrap::after,
+    [data-testid="stVerticalBlockBorderWrapper"]::after,
+    .diary-note::after, .info-item::after,
+    [data-testid="stFileUploader"]::after {
+        content: "" !important;
+        position: absolute !important;
+        inset: 0 !important;
+        display: block !important;
+        pointer-events: none !important;
+        border-radius: inherit !important;
+        border-top: 1px solid rgba(255,255,255,.78) !important;
+        border-left: 1px solid rgba(255,255,255,.28) !important;
+        border-right: 1px solid rgba(255,255,255,.12) !important;
+        border-bottom: 1px solid rgba(255,255,255,.42) !important;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.10),
+                    inset 0 2px 5px rgba(255,255,255,.16) !important;
+        z-index: 0 !important;
+    }
+    .main-title-wrap > *, [data-testid="stVerticalBlockBorderWrapper"] > *,
+    .diary-note > *, .info-item > *, [data-testid="stFileUploader"] > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    [data-testid="stFileUploaderDropzone"] {
+        background: rgba(255,255,255,.006) !important;
+        border: 1px dashed rgba(255,255,255,.82) !important;
+        box-shadow: inset 0 1px 2px rgba(255,255,255,.58) !important;
+    }
+
+    /* Poster preview itself gets the same soft, elastic water-drop hover */
+    [data-testid="stImage"] {
+        border-radius: 20px !important;
+        transform-origin: center;
+        transition: transform .55s cubic-bezier(.2, 1.65, .35, 1),
+                    filter .4s ease, box-shadow .45s ease !important;
+        will-change: transform;
+    }
+    [data-testid="stImage"] img {
+        border-radius: 16px !important;
+        border: 1px solid rgba(255,255,255,.86) !important;
+        box-shadow: 0 7px 22px rgba(65,76,91,.08),
+                    0 1px 2px rgba(255,255,255,.85) !important;
+        transition: border-radius .5s ease, box-shadow .45s ease !important;
+    }
+    [data-testid="stImage"]:hover {
+        transform: translateY(-5px) scale(1.018);
+        filter: brightness(1.035) saturate(1.04);
+        box-shadow: 0 18px 34px rgba(65,76,91,.12) !important;
+    }
+    [data-testid="stImage"]:hover img {
+        border-radius: 22px !important;
+        box-shadow: 0 0 0 1px rgba(255,255,255,.95),
+                    0 12px 28px rgba(65,76,91,.12) !important;
+    }
+
+    .main-title-wrap, [data-testid="stFileUploader"],
+    [data-testid="stVerticalBlockBorderWrapper"], .diary-note, .info-item {
+        transition: transform .55s cubic-bezier(.2, 1.65, .35, 1),
+                    border-radius .5s ease, box-shadow .45s ease !important;
+    }
+    .main-title-wrap:hover, [data-testid="stFileUploader"]:hover,
+    [data-testid="stVerticalBlockBorderWrapper"]:hover {
+        background: rgba(255,255,255,.018) !important;
+        box-shadow: inset 0 1px 1px rgba(255,255,255,1),
+                    inset 0 0 0 1px rgba(255,255,255,.26),
+                    0 18px 36px rgba(75,85,100,.09) !important;
+    }
+    .diary-note:hover, .info-item:hover {
+        background: rgba(255,255,255,.018) !important;
+        box-shadow: inset 0 1px 1px rgba(255,255,255,1),
+                    inset 0 0 0 1px rgba(255,255,255,.30),
+                    0 16px 30px rgba(75,85,100,.09) !important;
+    }
+
     </style>
     """,
     unsafe_allow_html=True
