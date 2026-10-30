@@ -5,7 +5,6 @@ import urllib.parse
 import json
 import re
 import io
-import html
 from datetime import datetime, timedelta
 
 # =========================================================
@@ -13,7 +12,7 @@ from datetime import datetime, timedelta
 # =========================================================
 st.set_page_config(
     page_title="행사 포스터 일정 자동 등록",
-    page_icon=None,
+    page_icon="🐈‍⬛",
     layout="wide"
 )
 
@@ -22,390 +21,620 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap');
 
-    :root { color-scheme: light; }
-    html, body, .stApp, [data-testid="stAppViewContainer"],
-    [data-testid="stMain"], [data-testid="stHeader"] {
-        background: #dfe2e6 !important;
-        color: #17191d !important;
+    /* 전체 테마: 따뜻한 크림 + 라벤더 포인트 */
+    .stApp {
+        font-family: "Jua", "Gowun Dodum", "Malgun Gothic", sans-serif;
+        background: linear-gradient(180deg, #f7f7f8 0%, #ffffff 44%, #f4f4f5 100%);
+        color: #202024;
     }
-    [data-testid="stAppViewContainer"] {
-        background:
-            radial-gradient(ellipse at 18% 12%, rgba(255,255,255,.42), transparent 38%),
-            radial-gradient(ellipse at 84% 76%, rgba(255,255,255,.20), transparent 42%),
-            linear-gradient(145deg, #e5e7ea 0%, #d9dde2 52%, #e6e8eb 100%) !important;
-        background-attachment: fixed !important;
-    }
-    [data-testid="stHeader"] { background: rgba(223,226,230,.35) !important; }
-    .stApp, .stApp * {
-        color: #17191d;
+
+    /* 앱 전체를 동글동글한 글씨로 통일 */
+    .stApp p, .stApp label, .stApp input, .stApp textarea,
+    .stApp select, .stApp [data-testid="stMarkdownContainer"],
+    .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stFileUploaderDropzone"] {
         font-family: "Gowun Dodum", "Jua", "Malgun Gothic", sans-serif !important;
     }
-    .stApp .material-symbols-outlined, .stApp .material-icons,
-    .stApp [class*="material-symbols"] { font-family: "Material Symbols Outlined" !important; }
-    h1, h2, h3, h4, h5, h6,
-    .main-title-wrap .main-title, .event-info-heading,
-    .extra-info-heading, .info-section-title {
-        color: #111 !important;
+
+    /* Streamlit 아이콘은 아이콘 폰트를 유지 */
+    .stApp .material-symbols-outlined,
+    .stApp .material-icons,
+    .stApp [class*="material-symbols"] {
+        font-family: "Material Symbols Outlined" !important;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
         font-family: "Jua", "Gowun Dodum", sans-serif !important;
         font-weight: 400 !important;
-        letter-spacing: -.025em;
-    }
-    [data-testid="stMain"] > div {
-        max-width: 1120px; margin: 0 auto !important;
-        padding: 2rem 1.5rem 3rem !important;
-        background: transparent !important;
+        letter-spacing: -0.02em;
     }
 
-    /* Transparent liquid surface: almost no fill, only a curved bright rim */
-    .main-title-wrap,
-    [data-testid="stFileUploader"],
-    [data-testid="stVerticalBlockBorderWrapper"],
-    .diary-note, .info-item,
-    .stApp [data-testid="stExpander"] details,
-    .stApp [data-testid="stExpander"] summary {
-        position: relative !important;
-        isolation: isolate !important;
-        overflow: hidden !important;
-        background: rgba(255,255,255,.008) !important;
-        -webkit-backdrop-filter: blur(1.2px) saturate(125%) !important;
-        backdrop-filter: blur(1.2px) saturate(125%) !important;
-        border: 1px solid rgba(255,255,255,.90) !important;
-        box-shadow:
-            inset 0 1.4px 1px rgba(255,255,255,.98),
-            inset 1.2px 0 1px rgba(255,255,255,.72),
-            inset -1px 0 1px rgba(255,255,255,.38),
-            inset 0 -1.2px 1px rgba(255,255,255,.58),
-            0 10px 25px rgba(75,83,96,.055) !important;
-    }
-
+    /* 상단 제목 영역 */
     .main-title-wrap {
-        max-width: 980px; margin: 18px auto 34px; padding: 38px 28px 36px;
-        text-align: center; border-radius: 30px !important;
-        transition: transform .55s cubic-bezier(.2,1.65,.35,1),
-                    box-shadow .45s ease, border-radius .5s ease !important;
+        text-align: center;
+        padding: 24px 12px 12px 12px;
     }
+
     .main-title-wrap .main-title {
-        margin: 0; font-size: clamp(30px, 4vw, 46px);
-        line-height: 1.3; letter-spacing: -.035em;
-        text-shadow: 0 1px 1px rgba(255,255,255,.75);
-    }
-    .main-title-wrap .main-subtitle { margin-top: 10px; color: #34383e !important; font-size: 15px; }
-
-    /* Water droplet specular highlights: tiny white crescents near the rim */
-    .main-title-wrap::before,
-    [data-testid="stVerticalBlockBorderWrapper"]::before,
-    .diary-note::before, .info-item::before,
-    [data-testid="stFileUploader"]::before {
-        content: "" !important;
-        position: absolute !important;
-        pointer-events: none !important;
-        z-index: 2 !important;
-        inset: 1px !important;
-        border-radius: inherit !important;
-        background:
-            radial-gradient(ellipse 25% 16% at 13% 4%,
-                rgba(255,255,255,.96) 0%, rgba(255,255,255,.52) 24%,
-                rgba(255,255,255,.08) 58%, transparent 78%),
-            radial-gradient(ellipse 22% 13% at 88% 96%,
-                rgba(255,255,255,.48) 0%, rgba(255,255,255,.12) 48%, transparent 76%);
-        opacity: .9 !important;
-    }
-    .main-title-wrap::after,
-    [data-testid="stVerticalBlockBorderWrapper"]::after,
-    .diary-note::after, .info-item::after,
-    [data-testid="stFileUploader"]::after {
-        content: "" !important;
-        position: absolute !important;
-        pointer-events: none !important;
-        z-index: 2 !important;
-        inset: 0 !important;
-        border-radius: inherit !important;
-        border: 1px solid rgba(255,255,255,.22) !important;
-        border-top-color: rgba(255,255,255,.98) !important;
-        border-left-color: rgba(255,255,255,.58) !important;
-        border-right-color: rgba(255,255,255,.34) !important;
-        border-bottom-color: rgba(255,255,255,.72) !important;
-        box-shadow:
-            inset 0 1px 2px rgba(255,255,255,.65),
-            inset 1px 0 1px rgba(255,255,255,.26),
-            inset 0 -1px 2px rgba(255,255,255,.22) !important;
-    }
-    .main-title-wrap > *, [data-testid="stVerticalBlockBorderWrapper"] > *,
-    .diary-note > *, .info-item > *, [data-testid="stFileUploader"] > * {
-        position: relative; z-index: 3;
+        font-family: "Jua", "Gowun Dodum", sans-serif;
+        font-size: clamp(32px, 4vw, 48px);
+        line-height: 1.25;
+        color: #17171b;
+        margin: 0;
     }
 
+    .main-title-wrap .main-subtitle {
+        margin-top: 10px;
+        color: #66666f;
+        font-family: "Gowun Dodum", "Jua", sans-serif;
+        font-size: 16px;
+        font-weight: 400;
+    }
+
+    /* 업로드 영역 */
     [data-testid="stFileUploader"] {
-        padding: 14px !important; border-radius: 25px !important;
-        transition: transform .55s cubic-bezier(.2,1.65,.35,1),
-                    box-shadow .45s ease, border-radius .5s ease !important;
-    }
-    [data-testid="stFileUploaderDropzone"] {
-        background: rgba(255,255,255,.004) !important;
-        border: 1px dashed rgba(255,255,255,.78) !important;
-        border-radius: 18px !important;
-        box-shadow: inset 0 1px 2px rgba(255,255,255,.50) !important;
-    }
-    [data-testid="stFileUploader"] button {
-        border: 1px solid rgba(255,255,255,.88) !important;
-        border-radius: 13px !important;
-        background: rgba(255,255,255,.025) !important;
-        color: #17191d !important;
+        background: rgba(255,255,255,.98);
+        border: 2px dashed #bdbdc5;
+        border-radius: 18px 24px 20px 14px;
+        padding: 9px;
+        box-shadow: 3px 4px 0 rgba(20,20,24,.05), 0 10px 22px rgba(20,20,24,.06);
     }
 
-    div.stButton > button[kind="primary"],
-    .stDownloadButton > button, [data-testid="stLinkButton"] a {
-        min-height: 54px !important;
-        background: rgba(255,255,255,.018) !important;
-        -webkit-backdrop-filter: blur(2px) saturate(130%) !important;
-        backdrop-filter: blur(2px) saturate(130%) !important;
-        border: 1px solid rgba(255,255,255,.94) !important;
-        border-radius: 20px !important; color: #111 !important;
-        box-shadow: inset 0 1px 1px rgba(255,255,255,.98),
-                    inset 0 -1px 1px rgba(255,255,255,.42),
-                    0 9px 22px rgba(75,83,96,.07) !important;
+    /* 메인 정보 찾기 버튼 */
+    div.stButton > button[kind="primary"] {
+        border-radius: 16px !important;
+        min-height: 52px !important;
         font-family: "Jua", "Gowun Dodum", sans-serif !important;
-        transition: transform .52s cubic-bezier(.2,1.65,.35,1),
-                    box-shadow .4s ease, border-radius .45s ease !important;
+        font-size: 18px !important;
+        letter-spacing: -0.01em;
+        border: 0 !important;
+        box-shadow: 0 7px 18px rgba(20,20,24,0.16);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
 
+    div.stButton > button[kind="primary"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 22px rgba(20,20,24,0.22);
+    }
+
+    /* ───────── 다이어리 노트형 행사 카드 ───────── */
     [data-testid="stVerticalBlockBorderWrapper"] {
-        margin: 22px 0 28px !important; padding: 24px !important;
-        border-radius: 27px !important;
-        transition: transform .55s cubic-bezier(.2,1.65,.35,1),
-                    box-shadow .45s ease, border-radius .5s ease !important;
+        position: relative;
+        margin: 28px 0 34px 0 !important;
+        padding: 28px 28px 24px 42px !important;
+        border-radius: 10px 18px 14px 12px !important;
+        border: 1px solid #e5e5e9 !important;
+        border-left: 3px solid #242429 !important;
+        background-color: #ffffff !important;
+        background-image:
+            linear-gradient(to right, transparent 0, transparent 31px, rgba(30,30,35,.06) 32px, transparent 33px),
+            repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(30,30,35,.035) 32px, transparent 33px);
+        box-shadow: 4px 7px 0 rgba(20,20,24,.05), 0 14px 30px rgba(20,20,24,.08);
+        overflow: visible !important;
     }
-    .diary-note, .info-item {
-        padding: 16px 19px !important; border-radius: 20px !important;
-        background: rgba(255,255,255,.003) !important;
-        transition: transform .52s cubic-bezier(.2,1.65,.35,1),
-                    box-shadow .4s ease, border-radius .48s ease !important;
-        will-change: transform;
-    }
-    .diary-label, .info-label { color: #262a30 !important; font-weight: 700 !important; }
-    .diary-value, .info-value, .event-sub-info, .event-description, .keyword-text {
-        color: #17191d !important;
-    }
-    .event-title, .event-display-title {
-        color: #111 !important; font-family: "Jua", "Gowun Dodum", sans-serif !important;
-    }
-    .event-display-title { font-size: clamp(28px,3.2vw,42px); line-height: 1.2; margin: 4px 0 2px; }
-    .event-display-subtitle { color: #292d33 !important; font-size: 15px; margin: 0 0 18px 1px; }
-    .event-info-heading, .extra-info-heading, .info-section-title {
-        font-family: "Jua", "Gowun Dodum", sans-serif !important;
-        font-size: 2rem; margin: .25rem 0 .8rem; color: #111 !important;
-    }
-    .info-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin: 10px 0 16px; }
-    .info-item { min-width: 0; }
-    .info-label { font-family: "Gowun Dodum", sans-serif !important; font-size: 14px; margin-bottom: 9px; }
-    .info-value { font-size: 15px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 
-    .stApp [data-testid="stExpander"] details,
-    .stApp [data-testid="stExpander"] summary {
-        border-radius: 17px !important; background: rgba(255,255,255,.008) !important;
-        transition: transform .5s cubic-bezier(.2,1.6,.35,1), box-shadow .4s ease !important;
+    /* 노트 위에 붙인 마스킹테이프 */
+    [data-testid="stVerticalBlockBorderWrapper"]::before {
+        content: "";
+        position: absolute;
+        z-index: 5;
+        top: -13px;
+        left: 50%;
+        transform: translateX(-50%) rotate(-2deg);
+        width: 108px;
+        height: 28px;
+        border-radius: 5px;
+        background: rgba(28,28,33,.92);
+        box-shadow: 0 2px 5px rgba(20,20,24,.12);
     }
+
+    /* 노트의 왼쪽 바인더 구멍 느낌 */
+    [data-testid="stVerticalBlockBorderWrapper"]::after {
+        content: "";
+        position: absolute;
+        left: 8px;
+        top: 42px;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #f1a8bd;
+        box-shadow: 0 39px #f1a8bd, 0 78px #f1a8bd, 0 117px #f1a8bd, 0 156px #f1a8bd, 0 195px #f1a8bd;
+    }
+
+    .event-title {
+        font-family: "Jua", "Gowun Dodum", sans-serif;
+        font-size: 32px;
+        font-weight: 400;
+        line-height: 1.25;
+        margin-bottom: 22px;
+        color: #1c1c21;
+    }
+
+    .event-main-info {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .info-item {
+        flex: 1;
+        padding: 15px 18px;
+        border-radius: 12px;
+        background: #f7f7f8;
+        border: 1px dashed #d7d7dd;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+    }
+
+    .info-label {
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        opacity: 0.72;
+    }
+
+    .info-value {
+        font-size: 20px;
+        font-weight: 750;
+    }
+
+    .event-sub-info {
+        display: grid;
+        gap: 8px;
+        font-size: 16px;
+        line-height: 1.55;
+        margin-bottom: 18px;
+    }
+
+    .event-description {
+        border-top: 1px solid #e8e8ec;
+        padding-top: 16px;
+    }
+
+    .keyword-text {
+        font-size: 16px;
+        line-height: 1.7;
+    }
+
+    /* 다이어리 메모지 느낌의 핵심 정보 */
+    .diary-note {
+        position: relative;
+        margin: 11px 0 14px 0;
+        padding: 14px 18px 15px 18px;
+        border-radius: 8px 13px 10px 7px;
+        border: 1px dashed #d7d7dd;
+        background: rgba(255,255,255,.96);
+        box-shadow: 2px 3px 0 rgba(20,20,24,.05);
+    }
+
+    .diary-note::after {
+        content: "";
+        position: absolute;
+        right: 10px;
+        top: 8px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid #f1a8bd;
+        background: #ffffff;
+    }
+
+    .diary-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #686871;
+        margin-bottom: 4px;
+    }
+
+    .diary-value {
+        font-size: 18px;
+        color: #29292f;
+    }
+
+    /* 확장/수정 버튼 안의 아이콘이 글씨와 겹치지 않도록 아이콘 폰트를 강제로 분리 */
+    .stApp span[class*="material-symbols"],
+    .stApp span[class*="material-icons"],
+    .stApp i[class*="material-symbols"],
+    .stApp i[class*="material-icons"] {
+        font-family: "Material Symbols Outlined", "Material Icons" !important;
+        font-weight: normal !important;
+        font-style: normal !important;
+        letter-spacing: normal !important;
+    }
+
+    /* 정보 수정 / OCR 확인 영역 — 글자와 펼침 아이콘이 절대 겹치지 않게 */
     .stApp [data-testid="stExpander"] summary {
-        min-height: 54px !important;
-        padding: 11px 17px !important;
+        min-height: 52px !important;
+        padding: 9px 16px !important;
+        border-radius: 14px !important;
         display: flex !important;
         align-items: center !important;
         gap: 12px !important;
+        overflow: hidden !important;
         box-sizing: border-box !important;
-        overflow: visible !important;
     }
-    /* Expander 제목과 펼침 화살표가 서로 겹치지 않도록 영역을 분리 */
-    .stApp [data-testid="stExpander"] summary [data-testid="stExpanderToggleIcon"],
-    .stApp [data-testid="stExpander"] summary svg {
-        flex: 0 0 auto !important;
-        width: 1.15rem !important;
-        height: 1.15rem !important;
-        margin: 0 2px 0 0 !important;
-        position: static !important;
-    }
-    .stApp [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] {
-        flex: 1 1 auto !important;
+    .stApp [data-testid="stExpander"] summary > div {
+        display: flex !important;
+        align-items: center !important;
         min-width: 0 !important;
-        width: auto !important;
-        overflow: visible !important;
+        flex: 1 1 auto !important;
     }
     .stApp [data-testid="stExpander"] summary p {
-        color: #17191d !important;
         margin: 0 !important;
+        padding: 0 !important;
         line-height: 1.45 !important;
-        overflow-wrap: anywhere !important;
+        font-family: "Gowun Dodum", "Jua", sans-serif !important;
+        font-weight: 400 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    .stApp [data-testid="stExpander"] summary span[class*="material"] {
+        flex: 0 0 24px !important;
+        width: 24px !important;
+        min-width: 24px !important;
+        height: 24px !important;
+        line-height: 24px !important;
+        font-family: "Material Symbols Outlined", "Material Icons" !important;
+        font-weight: normal !important;
+        letter-spacing: normal !important;
+        overflow: hidden !important;
     }
 
-    /* 자동 추출 확인/날짜 안내/확인 안내 박스는 노랑·파랑 대신 흰색 */
-    .stApp [data-testid="stAlert"] {
-        background: rgba(255,255,255,.94) !important;
-        background-color: rgba(255,255,255,.94) !important;
-        color: #17191d !important;
-        border: 1px solid rgba(255,255,255,.98) !important;
-        border-radius: 16px !important;
-        box-shadow: 0 5px 16px rgba(65,76,91,.055),
-                    inset 0 1px 0 rgba(255,255,255,1) !important;
+    .event-display-title {
+        font-family: "Jua", "Gowun Dodum", sans-serif;
+        font-size: clamp(28px, 3.2vw, 42px);
+        line-height: 1.2;
+        font-weight: 400;
+        color: #17171b;
+        margin: 4px 0 2px 0;
+        letter-spacing: -0.02em;
     }
-    .stApp [data-testid="stAlert"] > div,
-    .stApp [data-testid="stAlert"] [data-testid="stMarkdownContainer"] {
-        background: transparent !important;
-        color: #17191d !important;
+    .event-display-subtitle {
+        font-family: "Gowun Dodum", "Jua", sans-serif;
+        font-size: 15px;
+        line-height: 1.45;
+        font-weight: 400;
+        color: #777780;
+        margin: 0 0 18px 1px;
     }
-    .stApp [data-testid="stAlert"] p { color: #17191d !important; }
+
+    /* 검은 고양이 테마: 깔끔한 흑백 + 말랑한 핑크 젤리 포인트 */
+    .stApp {
+        background: linear-gradient(180deg, #f6f6f7 0%, #ffffff 34%, #f7f7f8 100%);
+        color: #202024;
+    }
+    .main-title-wrap {
+        position: relative;
+        padding-top: 30px;
+        padding-bottom: 20px;
+    }
+    .main-title-wrap::before {
+        content: "🐈‍⬛";
+        display: block;
+        font-size: 43px;
+        line-height: 1.1;
+        margin-bottom: 8px;
+        filter: drop-shadow(0 4px 0 rgba(20,20,24,.06));
+    }
+    .main-title-wrap::after {
+        content: "肉球  •  pink beans  •  肉球";
+        display: block;
+        margin-top: 12px;
+        color: #e58da8;
+        font-family: "Gowun Dodum", sans-serif;
+        font-size: 12px;
+        letter-spacing: .14em;
+    }
+    .main-title-wrap .main-title { color: #17171b; }
+    .main-title-wrap .main-subtitle { color: #686871; }
+    [data-testid="stFileUploader"] {
+        position: relative;
+        background: #fff;
+        border: 2px dashed #c8c8cf;
+        border-radius: 22px;
+        box-shadow: 0 8px 24px rgba(20,20,24,.045);
+    }
+    [data-testid="stFileUploader"]::after {
+        content: "🐾";
+        position: absolute;
+        right: 15px;
+        bottom: 10px;
+        font-size: 23px;
+        opacity: .82;
+        pointer-events: none;
+    }
+    div.stButton > button[kind="primary"] {
+        background: #242429 !important;
+        color: #fff !important;
+        border: 1px solid #242429 !important;
+        border-radius: 17px !important;
+        box-shadow: 0 5px 0 #dedee3, 0 9px 18px rgba(20,20,24,.10) !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background: #3a3a42 !important;
+        border-color: #3a3a42 !important;
+        box-shadow: 0 3px 0 #dedee3, 0 8px 18px rgba(20,20,24,.13) !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border-color: #e1e1e5 !important;
+        border-left-color: #242429 !important;
+        background-color: #fff !important;
+        background-image: none !important;
+        border-radius: 20px !important;
+        box-shadow: 0 8px 24px rgba(20,20,24,.055) !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::before {
+        content: "🐾";
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 43px;
+        height: 28px;
+        background: #f9dce5;
+        color: #28282d;
+        border-radius: 999px;
+        font-size: 16px;
+        box-shadow: none;
+        transform: translateX(-50%) rotate(-5deg);
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::after {
+        background: #f1a8bd;
+        box-shadow: 0 39px #f1a8bd, 0 78px #f1a8bd, 0 117px #f1a8bd, 0 156px #f1a8bd, 0 195px #f1a8bd;
+    }
+    .event-title, .event-display-title { color: #17171b !important; }
+    .info-item {
+        background: #f8f8f9;
+        border: 1px solid #e2e2e6;
+        border-radius: 16px;
+    }
+    .diary-note {
+        border: 1px solid #e4e4e8;
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 3px 0 rgba(20,20,24,.035);
+    }
+    .diary-note::after {
+        background: #f7c8d7;
+        border-color: #f1a8bd;
+    }
+    .diary-label { color: #777780; }
+    .diary-value { color: #29292f; }
+    .stApp [data-testid="stExpander"] summary {
+        background: #f8f8f9;
+        border: 1px solid #e5e5e9;
+        border-radius: 15px !important;
+    }
+    .stApp [data-testid="stExpander"] summary:hover { border-color: #f1a8bd; }
+    .stApp [data-testid="stFileUploaderDropzone"] { background: transparent; }
+    .stApp [data-testid="stProgressBar"] > div > div { background-color: #f1a8bd; }
+
+    /* ───── 종이 다이어리 테마: 크림색 종이 + 오렌지/블루 필기 포인트 ───── */
+    .stApp {
+        background: #f7f5ef !important;
+        color: #34495a !important;
+    }
+    [data-testid="stHeader"] { background: rgba(247,245,239,.92) !important; }
+    .main-title-wrap {
+        max-width: 900px;
+        margin: 10px auto 28px auto;
+        padding: 30px 20px 24px;
+        background: #fffefa;
+        border: 1px solid #e8e1d4;
+        border-radius: 4px 4px 18px 4px;
+        box-shadow: 5px 6px 0 #e8e1d4, 0 12px 28px rgba(72,82,90,.06);
+        transform: rotate(-.25deg);
+    }
+    .main-title-wrap::before {
+        content: "✦  MY EVENT DIARY  ✦";
+        font-family: "Jua", sans-serif;
+        font-size: 13px;
+        letter-spacing: .18em;
+        color: #df8d68;
+        filter: none;
+        margin-bottom: 12px;
+    }
+    .main-title-wrap::after {
+        content: "오늘의 행사도 다이어리에 차곡차곡";
+        color: #6387a0;
+        letter-spacing: .04em;
+        font-size: 13px;
+    }
+    .main-title-wrap .main-title { color: #38566c !important; }
+    .main-title-wrap .main-subtitle { color: #8a8278 !important; }
+
+    [data-testid="stFileUploader"] {
+        background: #fffefa !important;
+        border: 2px dashed #9db7c7 !important;
+        border-radius: 5px 5px 16px 5px !important;
+        box-shadow: 4px 5px 0 #e6e0d5, 0 10px 24px rgba(72,82,90,.05) !important;
+    }
+    [data-testid="stFileUploader"]::after { content: "✎"; color: #df8d68; font-size: 26px; }
+    div.stButton > button[kind="primary"] {
+        background: #5c829a !important;
+        color: #fffefa !important;
+        border: 1px solid #5c829a !important;
+        border-radius: 5px 5px 12px 5px !important;
+        box-shadow: 3px 4px 0 #d6e0e4 !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background: #466b83 !important;
+        border-color: #466b83 !important;
+        transform: translateY(-1px);
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #fffefa !important;
+        background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 35px, rgba(108,143,164,.10) 36px, transparent 37px) !important;
+        border: 1px solid #e7dfd2 !important;
+        border-left: 1px solid #e7dfd2 !important;
+        border-radius: 4px 4px 15px 4px !important;
+        box-shadow: 4px 5px 0 #e9e2d7, 0 12px 25px rgba(72,82,90,.06) !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::before {
+        content: "✦ NOTES ✦" !important;
+        width: 92px !important;
+        height: 25px !important;
+        top: -11px !important;
+        background: #f4d4bd !important;
+        color: #a96448 !important;
+        border-radius: 2px !important;
+        font-family: "Jua", sans-serif !important;
+        font-size: 11px !important;
+        letter-spacing: .08em !important;
+        box-shadow: 0 2px 3px rgba(72,82,90,.08) !important;
+        transform: translateX(-50%) rotate(-2deg) !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::after {
+        background: #f7f5ef !important;
+        border: 2px solid #c5a878 !important;
+        box-shadow: 0 39px #f7f5ef, 0 39px 0 2px #c5a878, 0 78px #f7f5ef, 0 78px 0 2px #c5a878, 0 117px #f7f5ef, 0 117px 0 2px #c5a878, 0 156px #f7f5ef, 0 156px 0 2px #c5a878, 0 195px #f7f5ef, 0 195px 0 2px #c5a878 !important;
+    }
+    .event-title, .event-display-title { color: #38566c !important; }
+    .event-display-subtitle { color: #91877b !important; }
+    .info-item {
+        background: #f8f7f1 !important;
+        border: 1px dashed #c9d7dc !important;
+        border-radius: 4px 4px 12px 4px !important;
+        box-shadow: 2px 3px 0 #eee8dd !important;
+    }
+    .info-label, .diary-label { color: #c17a58 !important; }
+    .info-value, .diary-value { color: #38566c !important; }
+    .diary-note {
+        background: #fffefa !important;
+        border: 1px dashed #c8d6dc !important;
+        border-radius: 4px 4px 12px 4px !important;
+        box-shadow: 2px 3px 0 #eee8dd !important;
+    }
+    .diary-note:nth-of-type(even) { background: #fff8f0 !important; }
+    .diary-note::after { background: #fffefa !important; border-color: #6f94a8 !important; }
+    .stApp [data-testid="stExpander"] summary {
+        background: #f9f6ef !important;
+        border: 1px solid #e4dccc !important;
+        border-radius: 4px 4px 10px 4px !important;
+    }
+    .stApp [data-testid="stExpander"] summary:hover { border-color: #df9a78 !important; }
+    .stApp [data-testid="stProgressBar"] > div > div { background-color: #df9a78 !important; }
+    .stApp hr { border-color: #e5ddd0 !important; }
+
+    /* 다이어리 스타일을 화면 전체에 더 확실하게 적용 */
+    .stApp, [data-testid="stAppViewContainer"] {
+        background-color: #f5f0e6 !important;
+        background-image: radial-gradient(#d9d0c1 0.65px, transparent 0.65px) !important;
+        background-size: 13px 13px !important;
+    }
+    [data-testid="stMain"] > div {
+        background: rgba(255, 253, 247, .78) !important;
+        border-left: 1px solid #e5dccd !important;
+        border-right: 1px solid #e5dccd !important;
+        max-width: 1120px;
+        margin: 0 auto !important;
+        padding-top: 2rem !important;
+    }
+    .main-title-wrap {
+        position: relative !important;
+        background: repeating-linear-gradient(#fffdf7 0px, #fffdf7 33px, #dce6e9 34px, #fffdf7 35px) !important;
+        border: 1px solid #e0d4c2 !important;
+        border-left: 7px solid #d99a78 !important;
+        border-radius: 3px 8px 8px 3px !important;
+        box-shadow: 7px 8px 0 #e4d9c8, 0 15px 30px rgba(83,69,50,.10) !important;
+        padding: 38px 30px 32px !important;
+        transform: rotate(-.35deg);
+    }
+    .main-title-wrap .main-title { font-size: clamp(30px, 4vw, 44px) !important; letter-spacing: -.04em; }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        position: relative !important;
+        background-color: #fffdf7 !important;
+        background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(105,145,165,.15) 32px, transparent 33px) !important;
+        border: 1px solid #e4d8c7 !important;
+        border-radius: 3px 7px 7px 3px !important;
+        box-shadow: 6px 7px 0 #e6dccd, 0 12px 24px rgba(83,69,50,.07) !important;
+        padding: 22px 20px 20px 30px !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::before {
+        content: "MEMO" !important;
+        position: absolute !important;
+        top: -10px !important; left: 50% !important;
+        width: 76px !important; height: 23px !important;
+        display: flex !important; align-items: center !important; justify-content: center !important;
+        background: #f0d2b7 !important; color: #a76649 !important;
+        font-size: 11px !important; letter-spacing: .12em !important;
+        border: none !important; border-radius: 2px !important;
+        transform: translateX(-50%) rotate(-3deg) !important;
+        box-shadow: 0 2px 3px rgba(83,69,50,.08) !important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]::after {
+        left: 10px !important; top: 42px !important;
+        background: #f5f0e6 !important; border: 2px solid #c9b58f !important;
+        box-shadow: 0 39px #f5f0e6, 0 39px 0 2px #c9b58f, 0 78px #f5f0e6, 0 78px 0 2px #c9b58f, 0 117px #f5f0e6, 0 117px 0 2px #c9b58f !important;
+    }
+    .diary-note, .info-item {
+        background: #fffefa !important;
+        border: 1px dashed #c9d7dc !important;
+        border-radius: 3px 3px 12px 3px !important;
+        box-shadow: 3px 4px 0 #eee4d5 !important;
+        padding: 18px 20px !important;
+    }
+    .diary-label, .info-label { color: #c27d5a !important; text-transform: uppercase; letter-spacing: .04em; }
+    .diary-value, .info-value { color: #3f6175 !important; }
+    .stApp [data-testid="stFileUploader"] {
+        background: #fffdf7 !important; border: 2px dashed #8caaba !important;
+        border-radius: 4px 4px 14px 4px !important;
+        box-shadow: 5px 6px 0 #e7ddce !important; padding: 12px !important;
+    }
+    .stApp [data-testid="stFileUploaderDropzone"] { background: #fffdf7 !important; border: 0 !important; }
+    .stButton > button, .stDownloadButton > button, [data-testid="stLinkButton"] a {
+        border-radius: 4px 4px 12px 4px !important;
+        box-shadow: 3px 4px 0 #e5d9c9 !important;
+        font-weight: 700 !important; transition: transform .15s ease !important;
+    }
+    .stButton > button:hover, .stDownloadButton > button:hover { transform: translateY(-2px) rotate(-.4deg) !important; }
     .stTextInput input, .stTextArea textarea, .stDateInput input, .stTimeInput input,
     .stSelectbox [data-baseweb="select"] > div, .stMultiSelect [data-baseweb="select"] > div {
-        color: #17191d !important; background: rgba(255,255,255,.12) !important;
-        border: 1px solid rgba(255,255,255,.82) !important; border-radius: 11px !important;
+        background: #fffefa !important; border: 1px solid #d9cdbb !important; border-radius: 4px !important;
     }
-    .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stMarkdownContainer"],
-    .stApp [data-testid="stAlert"] { color: #17191d !important; }
-    .stApp hr { border-color: rgba(255,255,255,.72) !important; }
-
-    /* Gentle, elastic wobble: cards swell slightly like soft liquid */
-    .main-title-wrap:hover, [data-testid="stFileUploader"]:hover,
-    [data-testid="stVerticalBlockBorderWrapper"]:hover {
-        transform: translateY(-4px) scale(1.012);
-        border-radius: 31px !important;
-        box-shadow: inset 0 1px 2px rgba(255,255,255,1),
-                    inset 0 0 0 1px rgba(255,255,255,.36),
-                    0 18px 36px rgba(75,83,96,.10) !important;
-    }
-    .diary-note:hover, .info-item:hover {
-        transform: translateY(-3px) scale(1.025);
-        border-radius: 24px !important;
-        box-shadow: inset 0 1px 2px rgba(255,255,255,1),
-                    inset 0 0 0 1px rgba(255,255,255,.40),
-                    0 16px 30px rgba(75,83,96,.10) !important;
-    }
-    div.stButton > button:hover, .stDownloadButton > button:hover,
-    [data-testid="stLinkButton"] a:hover {
-        transform: translateY(-2px) scale(1.025);
-        border-radius: 23px !important;
-        box-shadow: inset 0 1px 2px rgba(255,255,255,1),
-                    0 15px 28px rgba(75,83,96,.12) !important;
-    }
-    div.stButton > button:active, .stDownloadButton > button:active {
-        transform: scale(.975) !important; transition-duration: .12s !important;
-    }
-
-    /* Poster hover: the image itself gently floats and expands */
-    [data-testid="stImage"] {
-        border-radius: 22px !important;
-        transform-origin: center;
-        transition: transform .58s cubic-bezier(.2,1.65,.35,1),
-                    filter .4s ease, box-shadow .45s ease !important;
-        will-change: transform;
-    }
-    [data-testid="stImage"] img {
-        border-radius: 19px !important;
-        border: 1px solid rgba(255,255,255,.92) !important;
-        box-shadow: 0 1px 2px rgba(255,255,255,.85),
-                    0 7px 20px rgba(65,76,91,.09) !important;
-        transition: border-radius .5s ease, box-shadow .45s ease !important;
-    }
-    [data-testid="stImage"]:hover {
-        transform: translateY(-6px) scale(1.025);
-        filter: brightness(1.035) saturate(1.04);
-    }
-    [data-testid="stImage"]:hover img {
-        border-radius: 25px !important;
-        box-shadow: 0 0 0 1px rgba(255,255,255,1),
-                    0 15px 30px rgba(65,76,91,.14) !important;
-    }
-
-    /* =====================================================
-       EXTRA CLEAR WATER-DROP GLASS OVERRIDES
-       투명한 내부 + 가장자리 굴절 + 물방울 하이라이트
-       ===================================================== */
-    .main-title-wrap,
-    [data-testid="stFileUploader"],
-    [data-testid="stVerticalBlockBorderWrapper"],
-    .diary-note, .info-item,
-    .stApp [data-testid="stExpander"] details,
     .stApp [data-testid="stExpander"] summary {
-        background: transparent !important;
-        background-color: rgba(255,255,255,0.002) !important;
-        -webkit-backdrop-filter: blur(0px) saturate(118%) !important;
-        backdrop-filter: blur(0px) saturate(118%) !important;
-        border: 1px solid rgba(255,255,255,.92) !important;
-        box-shadow:
-            inset 0 2px 1px rgba(255,255,255,.98),
-            inset 1.5px 0 1px rgba(255,255,255,.82),
-            inset -1.5px 0 1px rgba(255,255,255,.48),
-            inset 0 -2px 2px rgba(255,255,255,.78),
-            inset 0 -5px 9px rgba(115,126,141,.075),
-            0 2px 4px rgba(255,255,255,.55),
-            0 13px 28px rgba(70,80,94,.085) !important;
+        background: #fffaf0 !important; border: 1px dashed #cdbda5 !important; border-radius: 4px !important;
     }
+    .stApp h1, .stApp h2, .stApp h3 { color: #3f6175 !important; }
+    .stApp hr { border-color: #dcd0be !important; }
 
-    /* 물방울 표면에 맺힌 작은 반사광: 면은 투명하게 두고 가장자리만 강조 */
-    .main-title-wrap::before,
-    [data-testid="stVerticalBlockBorderWrapper"]::before,
-    .diary-note::before, .info-item::before,
-    [data-testid="stFileUploader"]::before {
-        background:
-            radial-gradient(ellipse 18% 7% at 18% 2%,
-                rgba(255,255,255,1) 0%, rgba(255,255,255,.72) 28%,
-                rgba(255,255,255,.12) 62%, transparent 100%),
-            radial-gradient(ellipse 10% 5% at 83% 5%,
-                rgba(255,255,255,.82) 0%, rgba(255,255,255,.18) 58%, transparent 100%),
-            radial-gradient(ellipse 24% 8% at 72% 100%,
-                rgba(255,255,255,.52) 0%, rgba(255,255,255,.10) 52%, transparent 100%) !important;
-        opacity: .95 !important;
-    }
-    .main-title-wrap::after,
-    [data-testid="stVerticalBlockBorderWrapper"]::after,
-    .diary-note::after, .info-item::after,
-    [data-testid="stFileUploader"]::after {
-        border: 1px solid rgba(255,255,255,.30) !important;
-        border-top: 1.5px solid rgba(255,255,255,1) !important;
-        border-left: 1px solid rgba(255,255,255,.76) !important;
-        border-right: 1px solid rgba(255,255,255,.48) !important;
-        border-bottom: 1.5px solid rgba(255,255,255,.90) !important;
-        box-shadow:
-            inset 0 1.5px 2px rgba(255,255,255,.95),
-            inset 1px 0 2px rgba(255,255,255,.50),
-            inset -1px 0 2px rgba(255,255,255,.24),
-            inset 0 -2px 3px rgba(255,255,255,.48),
-            inset 0 -6px 10px rgba(100,112,128,.045) !important;
-    }
-
-    /* 정보 카드 내부는 색을 채우지 않고 배경이 그대로 보이게 */
-    .diary-note, .info-item,
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        background: rgba(255,255,255,.001) !important;
-    }
-    [data-testid="stFileUploaderDropzone"] {
-        background: rgba(255,255,255,.001) !important;
-        border: 1px dashed rgba(255,255,255,.78) !important;
-        box-shadow: inset 0 1px 2px rgba(255,255,255,.72),
-                    inset 0 -2px 5px rgba(100,112,128,.035) !important;
-    }
-
-    /* hover 시 투명한 물방울이 살짝 부풀고 빛이 강해지는 효과 */
-    .main-title-wrap:hover,
-    [data-testid="stFileUploader"]:hover,
-    [data-testid="stVerticalBlockBorderWrapper"]:hover,
-    .diary-note:hover, .info-item:hover {
-        background: rgba(255,255,255,.006) !important;
-        box-shadow:
-            inset 0 2px 2px rgba(255,255,255,1),
-            inset 1px 0 2px rgba(255,255,255,.82),
-            inset 0 -3px 5px rgba(255,255,255,.65),
-            inset 0 -7px 12px rgba(100,112,128,.065),
-            0 3px 7px rgba(255,255,255,.62),
-            0 18px 36px rgba(70,80,94,.13) !important;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
-    }
     @media (max-width: 700px) {
-        .main-title-wrap { margin: 8px auto 24px; padding: 28px 18px; }
-        .main-title-wrap .main-title { font-size: 30px; }
         .event-title { font-size: 25px; }
-        [data-testid="stVerticalBlockBorderWrapper"] { padding: 18px !important; }
-        .info-grid { grid-template-columns: 1fr; }
+        .event-main-info { flex-direction: column; }
+        .main-title-wrap .main-title { font-size: 32px; }
+        [data-testid="stVerticalBlockBorderWrapper"] { padding-left: 34px !important; }
+    }
+    
+    /* 최종 안정화: Streamlit 펼침 메뉴의 제목과 화살표 아이콘을 서로 다른 영역에 배치 */
+    .stApp [data-testid="stExpander"] details > summary {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 14px !important;
+        min-height: 54px !important;
+        padding: 10px 18px !important;
+        box-sizing: border-box !important;
+    }
+    .stApp [data-testid="stExpander"] details > summary > div:first-child {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+    }
+    .stApp [data-testid="stExpander"] details > summary p,
+    .stApp [data-testid="stExpander"] details > summary span:not([class*="material"]) {
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        line-height: 1.5 !important;
+    }
+    .stApp [data-testid="stExpander"] details > summary [data-testid="stExpanderToggleIcon"],
+    .stApp [data-testid="stExpander"] details > summary span[class*="material"],
+    .stApp [data-testid="stExpander"] details > summary svg {
+        flex: 0 0 auto !important;
+        width: 1.25rem !important;
+        min-width: 1.25rem !important;
+        margin-left: 10px !important;
+        position: static !important;
+    }
+    .stApp [data-testid="stExpander"] details > summary svg {
+        display: block !important;
     }
     </style>
     """,
@@ -500,17 +729,15 @@ def ocr_image(image):
         if not attempts:
             return "", f"포스터 글자 읽기에 실패했습니다: {errors[0] if errors else '읽어낸 글자가 없습니다.'}"
 
-        # 가장 읽기 좋은 OCR 결과를 기본으로 두고 다른 결과의 유용한 줄만 덧붙입니다.
+        # 서로 다른 OCR 엔진의 결과를 한 문서로 합치면 잘못 읽힌 가수명·날짜가
+        # 섞여 들어갈 수 있습니다. 가장 품질이 높은 한 가지 결과만 사용합니다.
         best = max(attempts, key=quality)
-        combined_lines = []
-        seen = set()
-        for line in (best + "\n" + "\n".join(t for t in attempts if t != best)).splitlines():
-            line = re.sub(r"\s+", " ", line).strip()
-            key = line.casefold()
-            if line and key not in seen:
-                combined_lines.append(line)
-                seen.add(key)
-        return "\n".join(combined_lines), ""
+        best = "\n".join(
+            re.sub(r"[ \t]+", " ", line).strip()
+            for line in best.splitlines()
+            if re.sub(r"[ \t]+", " ", line).strip()
+        )
+        return best, ""
 
     except urllib.error.HTTPError as e:
         try:
@@ -1152,10 +1379,10 @@ def extract_special_info(text):
     """초청 가수/출연진 등 행사 특유의 추가 정보를 추출합니다."""
     result = []
     groups = [
-        ("초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"가수\s*초청", r"출연진", r"출연\s*가수", r"아티스트", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
-        ("주최·주관", [r"주최\s*·?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
-        ("나이 제한", [r"나이\s*제한", r"연령\s*제한", r"관람\s*연령", r"입장\s*연령", r"age(?:\s*limit)?", r"ages?"]),
-        ("주의 사항", [r"주의\s*사항", r"유의\s*사항", r"안내\s*사항", r"입장\s*안내", r"주의", r"please\s*note", r"important\s*notes?", r"notice", r"warnings?", r"no\s+\w+", r"prohibited"]),
+        ("🎤 초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"가수\s*초청", r"출연진", r"출연\s*가수", r"아티스트", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
+        ("🐾 주최·주관", [r"주최\s*·?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
+        ("🐾 나이 제한", [r"나이\s*제한", r"연령\s*제한", r"관람\s*연령", r"입장\s*연령", r"age(?:\s*limit)?", r"ages?"]),
+        ("🐾 주의 사항", [r"주의\s*사항", r"유의\s*사항", r"안내\s*사항", r"입장\s*안내", r"주의", r"please\s*note", r"important\s*notes?", r"notice", r"warnings?", r"no\s+\w+", r"prohibited"]),
     ]
     for label, patterns in groups:
         values = _extract_labeled_values(text, patterns)
@@ -1171,7 +1398,7 @@ def extract_special_info(text):
         result.append({"label": label, "value": " / ".join(values[:12]) if values else "-"})
 
     ticket_info = extract_ticket_info(text)
-    result.append({"label": "예매처", "value": ticket_info or "-"})
+    result.append({"label": "🎟️ 예매처", "value": ticket_info or "-"})
     # 프로그램 정보는 라벨이 없더라도 포스터에 명시된 활동 키워드를 모아 표시합니다.
     program_patterns = [r"주요\s*프로그램", r"프로그램", r"공연\s*내용", r"programs?"]
     program_values = _extract_labeled_values(text, program_patterns)
@@ -1192,7 +1419,7 @@ def extract_special_info(text):
         program_values.extend(detected)
     program_values = list(dict.fromkeys(v for v in program_values if v and v not in {"-", "정보 확인 필요"}))
     if program_values:
-        result.append({"label": "체험·공연·즐길거리", "value": " · ".join(program_values[:10])})
+        result.append({"label": "🎪 체험·공연·즐길거리", "value": " · ".join(program_values[:10])})
 
     # '공연'이라고 적혀 있지만 가수명이 따로 잡히지 않은 경우 공연 정보를 숨기지 않습니다.
     singer_item = next((item for item in result if "초청 가수" in item["label"]), None)
@@ -1205,9 +1432,9 @@ def extract_special_info(text):
 def extract_participation_info(text):
     """참가비·참가대상·참여방법은 핵심 내용과 분리해 보여줍니다."""
     groups = [
-        ("참가비", [r"참가\s*비", r"참여\s*비", r"입장료", r"참가비용"]),
-        ("참가 대상", [r"참가\s*대상", r"참여\s*대상", r"대상"]),
-        ("참여 방법", [r"참여\s*방법", r"참가\s*방법", r"신청\s*방법", r"접수\s*방법", r"신청\s*및\s*접수"]),
+        ("💰 참가비", [r"참가\s*비", r"참여\s*비", r"입장료", r"참가비용"]),
+        ("👥 참가 대상", [r"참가\s*대상", r"참여\s*대상", r"대상"]),
+        ("📝 참여 방법", [r"참여\s*방법", r"참가\s*방법", r"신청\s*방법", r"접수\s*방법", r"신청\s*및\s*접수"]),
     ]
     result=[]
     for label, patterns in groups:
@@ -1345,6 +1572,9 @@ def extract_title(text):
             score += 3
         if any(word in line.lower() for word in title_type_words):
             score += 12
+        # 공연/라인업 안내 문구가 제목 후보로 올라오는 것을 더 강하게 억제합니다.
+        if re.search(r"초청\s*가수|출연진|라인업|아티스트|출연\s*안내", line, re.I):
+            score -= 45
         # 장소 시설명이 제목처럼 점수화되는 것을 방지합니다.
         if any(word in line for word in location_words):
             score -= 12
@@ -1903,33 +2133,47 @@ def render_event_summary(data, index):
                 + (f'<div class="event-display-subtitle">{title_sub}</div>' if title_sub else ""),
                 unsafe_allow_html=True
             )
-            st.markdown(f'<div class="diary-note"><div class="diary-label">행사 날짜</div><div class="diary-value">{date_range}</div></div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="diary-note"><div class="diary-label">{time_label}</div><div class="diary-value">{time_text}</div></div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="diary-note"><div class="diary-label">장소</div><div class="diary-value">{location}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="diary-note"><div class="diary-label">📅 행사 날짜</div><div class="diary-value">{date_range}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="diary-note"><div class="diary-label">⏰ {time_label}</div><div class="diary-value">{time_text}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="diary-note"><div class="diary-label">📍 장소</div><div class="diary-value">{location}</div></div>', unsafe_allow_html=True)
 
         st.divider()
-        st.markdown('<div class="extra-info-heading">추가 정보</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:1.8rem;font-weight:900;margin:0.25rem 0 0.8rem 0;">🐾 추가 정보</div>', unsafe_allow_html=True)
         special_info = data.get("special_info", []) or [
-            {"label": "초청 가수 라인업", "value": "-"},
-            {"label": "주최·주관", "value": "-"},
-            {"label": "나이 제한", "value": "-"},
-            {"label": "주의 사항", "value": "-"},
+            {"label": "🎤 초청 가수 라인업", "value": "-"},
+            {"label": "🏷️ 주최·주관", "value": "-"},
+            {"label": "🔞 나이 제한", "value": "-"},
+            {"label": "⚠️ 주의 사항", "value": "-"},
         ]
-        cards = []
         for item in special_info:
-            label = re.sub(r"^[^가-힣A-Za-z0-9]+", "", item.get("label", "")).strip()
+            label = re.sub(r"^🐾\s*", "", item.get("label", ""))
+            # 항목별 이모지는 초청 가수/주최·주관/연령/주의 사항의 의미를 유지
+            if "초청 가수" in label or "라인업" in label: label = "🎤 초청 가수 라인업"
+            elif "주최" in label or "주관" in label: label = "🏷️ 주최·주관"
+            elif "나이" in label or "연령" in label: label = "🔞 나이 제한"
+            elif "주의" in label: label = "⚠️ 주의 사항"
             value = item.get("value") or "-"
-            cards.append((label or "기타 정보", str(value)))
+            if "초청 가수" in label or "라인업" in label:
+                # 요일/가수별로 세로 정렬해 한눈에 구분되도록 표시합니다.
+                st.markdown(f"**{label}**")
+                if value == "-":
+                    st.write("-")
+                else:
+                    for block in str(value).split(" / "):
+                        lines = [part.strip() for part in block.splitlines() if part.strip()]
+                        if len(lines) > 1 and lines[0].endswith("요일"):
+                            st.markdown(f"**{lines[0]}**")
+                            for artist_line in lines[1:]:
+                                st.markdown(f"&nbsp;&nbsp;{artist_line}", unsafe_allow_html=True)
+                        else:
+                            for artist_line in lines:
+                                st.markdown(artist_line)
+            else:
+                st.write(f"**{label}**  {value}")
+
+        # 참가비·참가 대상·참여 방법도 '추가 정보' 영역 안에 통합해 표시합니다.
         for item in data.get("participation_info", []) or []:
-            label = re.sub(r"^[^가-힣A-Za-z0-9]+", "", item.get("label", "")).strip()
-            cards.append((label or "추가 정보", str(item.get("value") or "-")))
-
-        st.markdown('<div class="info-grid">' + ''.join(
-            '<div class="info-item"><div class="info-label">' + html.escape(label) +
-            '</div><div class="info-value">' + value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>") +
-            '</div></div>' for label, value in cards
-        ) + '</div>', unsafe_allow_html=True)
-
+            st.write(f"**{item['label']}**  {item['value'] or '-'}")
         st.divider()
 
 
@@ -1948,7 +2192,7 @@ if "added_event_keys" not in st.session_state:
 st.markdown(
     """
     <div class="main-title-wrap">
-        <div class="main-title">행사 포스터 일정 자동 등록</div>
+        <div class="main-title">📅 행사 포스터 일정 자동 등록</div>
         <div class="main-subtitle">포스터를 올리면 행사 정보를 한눈에 정리하고 캘린더에 담을 수 있어요.</div>
     </div>
     """,
@@ -1962,10 +2206,10 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    st.write(f"선택한 포스터: **{len(uploaded_files)}장**")
+    st.write(f"📁 선택한 포스터: **{len(uploaded_files)}장**")
 
     if st.button(
-        "선택한 포스터에서 정보 찾기",
+        "🔎 선택한 포스터에서 정보 찾기",
         type="primary",
         use_container_width=True
     ):
@@ -2002,7 +2246,7 @@ if uploaded_files:
 # =========================================================
 if st.session_state.events:
     st.divider()
-    st.markdown('<div class="event-info-heading">행사정보</div>', unsafe_allow_html=True)
+    st.subheader("📋 행사 정보")
 
     for index, data in enumerate(st.session_state.events):
         source_name = data.get("source_name", f"행사 {index + 1}")
@@ -2015,11 +2259,11 @@ if st.session_state.events:
                 st.warning(data["ocr_error"])
             # 자동 추출이 실패한 경우에만 실제 OCR 결과를 확인할 수 있게 합니다.
             if data.get("needs_review") and data.get("ocr_text"):
-                with st.expander("읽어낸 포스터 글자 확인"):
+                with st.expander("🔎 읽어낸 포스터 글자 확인"):
                     st.code(data.get("ocr_text", ""), language=None)
 
             if data.get("needs_review"):
-                st.warning("자동 추출 결과를 확인해주세요.")
+                st.warning("⚠️ 자동 추출 결과를 확인해주세요.")
                 for reason in data.get("review_reasons", []):
                     st.write(f"• {reason}")
 
@@ -2029,12 +2273,12 @@ if st.session_state.events:
                 labels = [f"{d} (후보 {i+1})" for i,d in enumerate(candidates)]
                 current=data.get("selected_date", candidates[0])
                 idx=candidates.index(current) if current in candidates else 0
-                selected=st.selectbox("캘린더에 추가할 행사 날짜", range(len(candidates)), index=idx, format_func=lambda x: labels[x], key=f"date_select_top_{index}")
+                selected=st.selectbox("📅 캘린더에 추가할 행사 날짜", range(len(candidates)), index=idx, format_func=lambda x: labels[x], key=f"date_select_top_{index}")
                 data["selected_date"]=candidates[selected]; data["date"]=candidates[selected]
                 st.info("여러 날짜가 발견되었습니다. 행사 날짜를 선택한 뒤 캘린더에 추가하세요.")
 
             # 사용자가 수정할 수 있는 영역은 접어서 제공
-            with st.expander("정보 수정 / 자세히 보기"):
+            with st.expander("✏️ 정보 수정 / 자세히 보기"):
                 st.caption(
                     f"원본 포스터: {source_name} · "
                     "포스터에서 자동으로 찾은 정보를 수정할 수 있습니다."
@@ -2111,7 +2355,7 @@ if st.session_state.events:
                     key=f"url_{index}"
                 )
 
-                st.markdown("**포스터에서 발견한 추가 정보**")
+                st.markdown("**✨ 포스터에서 발견한 추가 정보**")
                 for item in data.get("special_info", []):
                     st.write(f"{item['label']}  {item['value']}")
                 for item in data.get("participation_info", []):
@@ -2127,7 +2371,7 @@ if st.session_state.events:
 
             if data.get("needs_review"):
                 data["confirmed"] = st.checkbox(
-                    "자동 추출 결과와 수정한 정보를 확인했습니다.",
+                    "⚠️ 자동 추출 결과와 수정한 정보를 확인했습니다.",
                     value=data.get("confirmed", False),
                     key=f"confirm_{index}"
                 )
@@ -2140,7 +2384,7 @@ if st.session_state.events:
 
             if duplicate:
                 st.error(
-                    "이미 추가한 행사입니다. "
+                    "🚫 이미 추가한 행사입니다. "
                     "같은 행사명·날짜·장소의 행사는 중복 추가할 수 없습니다."
                 )
                 continue
@@ -2165,7 +2409,7 @@ if st.session_state.events:
 
             if long_event:
                 st.info(
-                    "장기 행사예요. 참여할 날짜를 Google Calendar에서 직접 선택해 주세요.\n\n"
+                    "📅 장기 행사예요. 참여할 날짜를 Google Calendar에서 직접 선택해 주세요.\n\n"
                     f"행사 기간: {data.get('date', '')} ~ {data.get('end_date', '')}"
                 )
 
@@ -2174,14 +2418,14 @@ if st.session_state.events:
             ics = make_ics(data)
 
             if blocked:
-                st.info("위의 정보 확인을 완료하면 캘린더에 추가할 수 있습니다.")
+                st.info("⚠️ 위의 정보 확인을 완료하면 캘린더에 추가할 수 있습니다.")
 
             col1, col2 = st.columns(2)
 
             with col1:
                 if calendar_url:
                     st.link_button(
-                        "Google Calendar에 추가",
+                        "🗓️ Google Calendar에 추가",
                         calendar_url,
                         use_container_width=True,
                         disabled=blocked
@@ -2190,7 +2434,7 @@ if st.session_state.events:
             with col2:
                 if ics:
                     st.download_button(
-                        "일정 파일 다운로드",
+                        "📥 일정 파일 다운로드",
                         data=ics,
                         file_name=f"event_{index + 1}.ics",
                         mime="text/calendar",
@@ -2201,7 +2445,7 @@ if st.session_state.events:
                     st.caption("Google Calendar 외 다른 캘린더에서도 사용할 수 있는 일정 파일입니다.")
 
             if st.button(
-                "캘린더에 추가 완료로 표시",
+                "✅ 캘린더에 추가 완료로 표시",
                 key=f"added_{index}",
                 use_container_width=True,
                 disabled=blocked
@@ -2218,7 +2462,7 @@ if st.session_state.events:
 # =========================================================
 if st.session_state.added_event_keys:
     st.divider()
-    st.subheader("이미 추가한 행사")
+    st.subheader("✅ 이미 추가한 행사")
 
     for event in st.session_state.events:
         if is_duplicate(event):
