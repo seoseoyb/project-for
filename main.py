@@ -472,6 +472,10 @@ def ocr_image(image):
             score = min(len(text), 1600) / 30 + min(len(lines), 30) * 2
             score += 12 if re.search(r"20\d{2}|\d{1,2}\s*[./-]\s*\d{1,2}|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b", text, re.I) else 0
             score += 8 if re.search(r"\b(?:AM|PM|venue|location|festival|park|hall|plaza)\b|장소|일시|축제", text, re.I) else 0
+            # 단순히 글자 수가 많은 결과보다 핵심 행사 정보가 포함된 OCR을 우선합니다.
+            score += 10 if re.search(r"주최|주관|organizer|hosted\s*by", text, re.I) else 0
+            score += 10 if re.search(r"장\s*소|venue|location|DGB|대구은행파크|킨텍스|공원|광장|전시장", text, re.I) else 0
+            score += 8 if re.search(r"\d{1,2}\s*[:.]\s*\d{2}|\d{1,2}\s*시", text) else 0
             score -= sum(1 for line in lines if len(line) <= 2) * 1.5
             return score
 
@@ -486,15 +490,23 @@ def ocr_image(image):
             errors.append(err)
 
         best_so_far = max(attempts, key=quality) if attempts else ""
-        if quality(best_so_far) < 45 or not re.search(r"\d|[가-힣]", best_so_far):
-            for img, lang in ((enhanced, "auto"), (enhanced, "kor"), (enhanced, "eng")):
+        # 점수만으로 재시도를 생략하지 않습니다. 행사명/날짜가 읽혀도 장소·주최가
+        # 빠지는 경우가 있어 핵심 정보 단서가 부족하면 보정 이미지로 한 번 더 확인합니다.
+        has_location_signal = bool(re.search(r"장\s*소|venue|location|DGB|대구은행파크|킨텍스|공원|광장|전시장|[가-힣]+로\s*\d+", best_so_far, re.I))
+        has_organizer_signal = bool(re.search(r"주최|주관|organizer|hosted\s*by|presented\s*by", best_so_far, re.I))
+        needs_metadata_pass = not (has_location_signal and has_organizer_signal)
+        if quality(best_so_far) < 45 or not re.search(r"\d|[가-힣]", best_so_far) or needs_metadata_pass:
+            # 비용과 대기 시간을 과도하게 늘리지 않도록 추가 OCR은 최대 2회로 제한합니다.
+            for img, lang in ((enhanced, "auto"), (enhanced, "kor")):
                 text, err = request_ocr(to_jpeg(img), lang, "3")
                 if text:
                     attempts.append(text)
                 if err:
                     errors.append(err)
                 best_so_far = max(attempts, key=quality) if attempts else ""
-                if quality(best_so_far) >= 70 and re.search(r"\d|[가-힣]", best_so_far):
+                has_location_signal = bool(re.search(r"장\s*소|venue|location|DGB|대구은행파크|킨텍스|공원|광장|전시장|[가-힣]+로\s*\d+", best_so_far, re.I))
+                has_organizer_signal = bool(re.search(r"주최|주관|organizer|hosted\s*by|presented\s*by", best_so_far, re.I))
+                if quality(best_so_far) >= 70 and has_location_signal and has_organizer_signal:
                     break
 
         if not attempts:
@@ -869,7 +881,7 @@ def clean_extracted_lines(text):
     cleaned = []
     label_patterns = [
         (r"^\s*[0-9]+\s*(장소|행사장소|공연장|개최장소|장소안내)\s*[|lI1:：-]?\s*", r"\1: "),
-        (r"^\s*[0-9]+\s*(주최\s*·?\s*주관|주최|주관)\s*[|lI1:：-]?\s*", r"\1: "),
+        (r"^\s*[0-9]+\s*(주최\s*[/／·ㆍ&및]?\s*주관|주최|주관)\s*[|lI1:：-]?\s*", r"\1: "),
         (r"^\s*[0-9]+\s*(일시|기간|일정)\s*[|lI1:：-]?\s*", r"\1: "),
         (r"^\s*[0-9]+\s*(문의|문의처|연락처)\s*[|lI1:：-]?\s*", r"\1: "),
         (r"^\s*[0-9]+\s*(참가\s*신청|신청|접수|신청기간|접수기간)\s*[|lI1:：-]?\s*", r"\1: "),
@@ -882,7 +894,7 @@ def clean_extracted_lines(text):
             line = re.sub(pattern, replacement, line, flags=re.I)
         # 라벨 뒤에 OCR이 '1' 또는 '|'을 끼워 넣는 경우
         line = re.sub(r"(장소|행사장소|공연장|개최장소|장소안내)\s*[|lI1](?!\s*\d)\s*", r"\1: ", line, flags=re.I)
-        line = re.sub(r"(주최\s*·?\s*주관|주최|주관|일시|기간|일정|문의|문의처|연락처|참가\s*신청|신청|접수)\s*[|lI1](?!\s*\d)\s*", r"\1: ", line, flags=re.I)
+        line = re.sub(r"(주최\s*[/／·ㆍ&및]?\s*주관|주최|주관|일시|기간|일정|문의|문의처|연락처|참가\s*신청|신청|접수)\s*[|lI1](?!\s*\d)\s*", r"\1: ", line, flags=re.I)
         # 아이콘이 9/0 같은 숫자로 읽혀 라벨 앞에 남는 경우만 제거
         line = re.sub(r"^\s*[90]\s+(?=(장소|공연장|주최|주관|일시|문의|신청|접수)\b)", "", line, flags=re.I)
         cleaned.append(line)
@@ -1044,15 +1056,35 @@ def extract_singer_names(text):
     return found_any
 
 def extract_location(text):
-    """장소 라벨을 우선하고, 라벨이 없어도 장소 단서가 있는 OCR 줄에서 장소명을 추출합니다."""
-    text=clean_extracted_lines(text or "")
-    lines=[re.sub(r"\s+", " ", x).strip(" \t:：|-") for x in text.splitlines() if x.strip()]
-    if not lines: return ""
-    label=re.compile(r"^(?:장소|행사장소|공연장|개최장소|장소안내|venue|location)\s*[:：|]?\s*(.*)$",re.I)
-    bad=re.compile(r"예매처|예매\s*(?:안내|사이트|링크)?|인터파크|멜론티켓|티켓링크|YES\s*24|예스24|ticket|booking|주최|주관|제작지원",re.I)
-    venue_terms=("매헌시민의숲","시민의숲","야외예술마당","forest park","outdoor plaza","outdoor stage","civic forest","arboretum","nature center","nature centre","convention center","exhibition center","city hall","community center","난지한강공원","한강공원","킨텍스","전시장","전시관","야외광장","야외예식장","광장","가족쉼터","몽골문화촌","문화촌","문화회관","문화관","아트센터","예술회관","공연장","콘서트홀","체육관","운동장","캠퍼스","대학교","학교","플라자","경기장","공원","수목원","박물관","미술관","도서관","야외무대","전시실","센터","홀","88 garden","olympic park","olympic","garden","park","venue","hall","stadium")
+    """장소 라벨, 장소명 단서, 주소 패턴을 함께 사용해 장소를 추출합니다."""
+    text = clean_extracted_lines(text or "")
+    lines = [re.sub(r"\s+", " ", x).strip(" \t:：|-") for x in text.splitlines() if x.strip()]
+    if not lines:
+        return ""
+
+    # OCR에서 띄어쓰기/구분 기호가 흔들려도 장소 라벨을 찾도록 공백을 허용합니다.
+    label = re.compile(
+        r"^(?:장\s*소|행사\s*장\s*소|개최\s*장\s*소|공연\s*장|장\s*소\s*안\s*내|venue|location)\s*[:：|\-]?\s*(.*)$",
+        re.I,
+    )
+    bad = re.compile(
+        r"예매처|예매\s*(?:안내|사이트|링크|하기)?|인터파크|멜론티켓|티켓링크|YES\s*24|예스24|ticket|booking|주최|주관|제작지원|문의처",
+        re.I,
+    )
+    venue_terms = (
+        "DGB대구은행파크", "DGB 대구은행 파크", "대구은행파크", "대구은행 파크",
+        "매헌시민의숲", "시민의숲", "야외예술마당", "forest park", "outdoor plaza",
+        "outdoor stage", "civic forest", "arboretum", "nature center", "nature centre",
+        "convention center", "exhibition center", "city hall", "community center",
+        "난지한강공원", "한강공원", "킨텍스", "전시장", "전시관", "야외광장", "야외예식장",
+        "광장", "가족쉼터", "몽골문화촌", "문화촌", "문화회관", "문화관", "아트센터",
+        "예술회관", "공연장", "콘서트홀", "체육관", "운동장", "캠퍼스", "대학교", "학교",
+        "플라자", "경기장", "공원", "수목원", "박물관", "미술관", "도서관", "야외무대",
+        "전시실", "센터", "홀", "88 garden", "olympic park", "olympic", "garden", "park",
+        "venue", "hall", "stadium",
+    )
+
     def trim_dates(line):
-        # 날짜 범위(예: 2022.10.22~23)와 단일 날짜를 제거합니다.
         line = re.sub(
             r"\b20\d{2}\s*[./년-]\s*\d{1,2}\s*[./월-]\s*\d{1,2}"
             r"(?:\s*(?:~|～|〜|–|—|-|▶)\s*(?:20\d{2}\s*[./년-]\s*)?(?:\d{1,2}\s*[./월-]\s*)?\d{1,2})?"
@@ -1060,32 +1092,72 @@ def extract_location(text):
         )
         line = re.sub(r"\b\d{1,2}\s*[./]\s*\d{1,2}\s*(?:~|～|〜|–|—|-|▶)\s*(?:\d{1,2}\s*[./]\s*)?\d{1,2}\b", " ", line)
         line = re.sub(r"\b\d{1,2}\s*[./]\s*\d{1,2}\s*\(?[월화수목금토일]?\)?", " ", line)
-        # 날짜와 장소가 한 줄에 붙어 OCR된 경우 남은 앞쪽 날짜 숫자를 제거합니다.
         line = re.sub(r"^\s*\d{1,2}\s+(?=(?:OLYMPIC\s+)?PARK\b)", "", line, flags=re.I)
-        line = re.sub(r"\b\d{1,2}\s+(?=(?:OLYMPIC\s+)?PARK\b)", "", line, flags=re.I)
-        return re.sub(r"\s+", " ", line).strip(" ,.:：|-")
-    for i,line in enumerate(lines):
-        m=label.match(line)
-        if m:
-            val=trim_dates(m.group(1))
-            if val and not bad.search(val): return val
-            for nxt in lines[i+1:i+3]:
-                if not bad.search(nxt) and not re.search(r"일시|기간|예매|주최|주관",nxt,re.I):
-                    return trim_dates(nxt)
-    # 명시적 장소 단서가 있는 줄에서 날짜/홍보 문구를 제거하고 장소 부분만 추출
-    for line in lines:
-        if bad.search(line): continue
-        # '매헌시민의숲 가을축제'는 행사명일 수 있으므로 장소명으로 선택하지 않습니다.
-        if re.search(r"축제|페스티벌|festival|concert|콘서트|행사", line, re.I) and not re.search(r"야외예식장|야외광장|야외무대|전시장|전시관|공연장|행사장|체육관|운동장|경기장|주소", line, re.I):
+        line = re.sub(r"\s+", " ", line).strip(" ,.:：|-")
+        return line
+
+    def clean_candidate(value):
+        value = trim_dates(value)
+        value = re.sub(r"^(?:장\s*소|위치|주소)\s*[:：]?\s*", "", value, flags=re.I)
+        value = re.sub(r"\s+(?:주최|주관|문의|예매처)\s*[/·:]?.*$", "", value, flags=re.I)
+        return value.strip(" ,.:：|-•")
+
+    # 1) 라벨이 명시된 경우 가장 신뢰도 높은 후보로 처리합니다.
+    for i, line in enumerate(lines):
+        m = label.match(line)
+        if not m:
             continue
-        cleaned=trim_dates(line)
-        if not cleaned: continue
-        for term in venue_terms:
-            pos=cleaned.lower().find(term.lower())
-            if pos>=0:
-                candidate=cleaned[:].strip(" ,.:：|-•")
-                candidate=re.sub(r"^(?:장소|위치|주소)\s*[:：]?\s*", "", candidate, flags=re.I)
-                if 2 <= len(candidate) <= 90 and not bad.search(candidate): return candidate
+        value = clean_candidate(m.group(1))
+        if value and not bad.search(value) and len(value) <= 120:
+            return value
+        # 라벨과 값이 줄바꿈된 포스터도 지원합니다.
+        for nxt in lines[i + 1:i + 3]:
+            candidate = clean_candidate(nxt)
+            if candidate and not bad.search(candidate) and not re.search(r"일시|기간|신청|주최|주관", candidate, re.I):
+                return candidate
+
+    # 2) 도로명 주소가 보이면 같은 줄의 장소명까지 보존합니다.
+    address_re = re.compile(
+        r"(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)?"
+        r"\s*[가-힣]{1,8}\s*(?:시|도)\s*[가-힣0-9]{1,12}\s*(?:구|군|시)\s*"
+        r"[가-힣0-9·-]{1,20}(?:로|길)\s*\d+(?:-\d+)?"
+    )
+    for line_index, line in enumerate(lines):
+        if bad.search(line) or is_ticketing_text(line):
+            continue
+        if address_re.search(line) or re.search(r"대구\s*북구\s*고성로\s*191", line):
+            candidate = clean_candidate(line)
+            # 장소명과 주소가 OCR에서 서로 다른 줄로 분리된 경우 인접 줄을 합칩니다.
+            compact_neighbors = lines[max(0, line_index - 1):line_index] + lines[line_index + 1:line_index + 2]
+            for neighbor in compact_neighbors:
+                neighbor_clean = clean_candidate(neighbor)
+                neighbor_compact = re.sub(r"\s+", "", neighbor_clean).lower()
+                has_venue_name = any(
+                    re.sub(r"\s+", "", term).lower() in neighbor_compact
+                    for term in venue_terms
+                )
+                if has_venue_name and not bad.search(neighbor_clean):
+                    candidate = f"{neighbor_clean} ({candidate})"
+                    break
+            if candidate and len(candidate) <= 160:
+                return candidate
+
+    # 3) 장소를 나타내는 고유 명칭이 있는 줄을 탐색합니다.
+    for line in lines:
+        if bad.search(line) or is_ticketing_text(line):
+            continue
+        if re.search(r"축제|페스티벌|festival|concert|콘서트|행사", line, re.I) and not re.search(
+            r"야외예식장|야외광장|야외무대|전시장|전시관|공연장|행사장|체육관|운동장|경기장|주소|대구은행파크|킨텍스", line, re.I
+        ):
+            continue
+        candidate = clean_candidate(line)
+        if not candidate:
+            continue
+        compact_candidate = re.sub(r"\s+", "", candidate).lower()
+        if any(re.sub(r"\s+", "", term).lower() in compact_candidate for term in venue_terms):
+            if 2 <= len(candidate) <= 120 and not bad.search(candidate):
+                return candidate
+
     return ""
 
 def is_non_location_line(line):
@@ -1104,23 +1176,40 @@ def is_non_location_line(line):
 
 
 def extract_organizer(text):
-    text = clean_extracted_lines(text)
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    for line in lines:
-        if re.search(r"^(주최|주관|주최\s*·\s*주관|organizer|hosted\s*by|presented\s*by)\s*[:：]?", line, re.I):
-            return clean_labeled_value(line, ["주최·주관", "주최 · 주관", "주최", "주관", "organizer", "hosted by", "presented by"])
-    # 포스터에서 주최 라벨이 OCR로 누락된 경우, 명확한 기관명 자체를 인식합니다.
-    for line in lines:
-        if re.search(r"서울특별시\\s*동부공원여가센터|동부공원여가센터", line):
-            return line.strip()
+    """주최/주관, 주최·주관, 주최 및 주관 등 표기 변형을 처리합니다."""
+    text = clean_extracted_lines(text or "")
+    lines = [re.sub(r"\s+", " ", line).strip(" :：|-") for line in text.splitlines() if line.strip()]
+    label_re = re.compile(
+        r"(?:^|\s)(?:주최\s*(?:[/／·ㆍ&및]\s*)?주관|주최|주관|organizer|hosted\s*by|presented\s*by)\s*[:：|\-]?\s*(.*)$",
+        re.I,
+    )
+    stop_re = re.compile(r"\s+(?:장소|일시|기간|문의|예매처|신청|참가비)\s*[:：]?", re.I)
+    for i, line in enumerate(lines):
+        match = label_re.search(line)
+        if not match:
+            continue
+        value = match.group(1).strip(" /／·ㆍ&:：|-")
+        value = stop_re.split(value)[0].strip(" /／·ㆍ&:：|-")
+        if value and len(value) <= 100:
+            return value
+        # 라벨만 있고 기관명이 다음 줄에 있는 경우
+        for nxt in lines[i + 1:i + 3]:
+            candidate = nxt.strip(" /／·ㆍ&:：|-")
+            if candidate and not re.search(r"^(?:주최|주관|장소|일시|기간|문의|예매처)\b", candidate, re.I):
+                return candidate[:100]
 
-    # 라벨이 중간에 붙은 경우
+    # 라벨이 OCR에서 빠졌지만 공공기관 이름이 명확한 경우의 보완 규칙
+    organization_suffix = re.compile(
+        r"(?:[가-힣]{2,}(?:광역시|특별시|자치시|도|시|군|구)\s*[가-힣]{0,8}(?:청|청소년재단|문화재단|문화원)|"
+        r"[가-힣]{2,}(?:구청|시청|군청|도청|문화재단|문화원|관광재단|문화예술회관))"
+    )
     for line in lines:
-        if "주최" in line or "주관" in line or re.search(r"organizer|hosted by|presented by", line, re.I):
-            value = re.sub(r".*?(주최|주관|organizer|hosted\s*by|presented\s*by)\s*[:：]?\s*", "", line, count=1, flags=re.I)
-            if value.strip(): return value.strip()
+        if re.search(r"장소|일시|기간|문의|예매|신청", line, re.I):
+            continue
+        match = organization_suffix.search(line)
+        if match:
+            return match.group(0).strip()
     return ""
-
 
 def _extract_labeled_values(text, label_patterns):
     """라벨이 같은 줄/다음 줄에 있는 경우 모두 찾아 값만 반환합니다."""
@@ -1153,7 +1242,7 @@ def extract_special_info(text):
     result = []
     groups = [
         ("초청 가수 라인업", [r"초청\s*가수", r"초청가수", r"가수\s*초청", r"출연진", r"출연\s*가수", r"아티스트", r"초청\s*아티스트", r"invited\s*singers?", r"special\s*guest(?:s)?", r"guest\s*artists?", r"line[ -]?up", r"performers?"]),
-        ("주최·주관", [r"주최\s*·?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
+        ("주최·주관", [r"주최\s*[/／·ㆍ&및]?\s*주관", r"주최", r"주관", r"organizer", r"hosted\s*by", r"presented\s*by"]),
         ("나이 제한", [r"나이\s*제한", r"연령\s*제한", r"관람\s*연령", r"입장\s*연령", r"age(?:\s*limit)?", r"ages?"]),
         ("주의 사항", [r"주의\s*사항", r"유의\s*사항", r"안내\s*사항", r"입장\s*안내", r"주의", r"please\s*note", r"important\s*notes?", r"notice", r"warnings?", r"no\s+\w+", r"prohibited"]),
     ]
@@ -1162,7 +1251,7 @@ def extract_special_info(text):
         if "주최·주관" in label:
             detected_organizer = extract_organizer(text)
             if detected_organizer:
-                values = [detected_organizer] + values
+                values = [detected_organizer]
         if "초청 가수" in label:
             singers = extract_singer_names(text)
             values = singers + values
@@ -1578,6 +1667,8 @@ def make_event_data(text, source_name="", image_bytes=None):
     if data["deadline"] and data["date"] and data["deadline"] > data["date"]:
         reasons.append("신청 마감일이 행사 날짜보다 늦게 인식되었습니다. 마감일을 확인해주세요.")
     if not data["location"]: reasons.append("장소를 확실하게 찾지 못했습니다.")
+    if re.search(r"주최|주관|organizer|hosted\s*by|presented\s*by", text, re.I) and not data["organizer"]:
+        reasons.append("주최·주관 표기는 발견했지만 기관명을 분류하지 못했습니다.")
     if not data["start_time"]: reasons.append("시작 시간을 찾지 못했습니다.")
     data["review_reasons"]=reasons; data["needs_review"]=bool(reasons)
     return data
@@ -2013,10 +2104,18 @@ if st.session_state.events:
 
             if data.get("ocr_error"):
                 st.warning(data["ocr_error"])
-            # 자동 추출이 실패한 경우에만 실제 OCR 결과를 확인할 수 있게 합니다.
-            if data.get("needs_review") and data.get("ocr_text"):
-                with st.expander("읽어낸 포스터 글자 확인"):
+            # OCR 원문과 분류 결과를 항상 확인할 수 있어야 누락 원인을 구분할 수 있습니다.
+            if data.get("ocr_text"):
+                with st.expander("🔎 읽어낸 포스터 글자 및 인식 진단"):
+                    st.caption("아래 원문에 글자가 없다면 OCR 단계의 문제이고, 원문에는 있는데 위 정보에 없다면 정보 분류 단계의 문제입니다.")
                     st.code(data.get("ocr_text", ""), language=None)
+                    diagnostic_cols = st.columns(2)
+                    with diagnostic_cols[0]:
+                        st.write("**장소 추출 결과**")
+                        st.write(data.get("location") or "추출 실패")
+                    with diagnostic_cols[1]:
+                        st.write("**주최·주관 추출 결과**")
+                        st.write(data.get("organizer") or "추출 실패")
 
             if data.get("needs_review"):
                 st.warning("자동 추출 결과를 확인해주세요.")
